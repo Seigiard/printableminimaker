@@ -38,4 +38,21 @@ Vanilla TypeScript SPA. Image decode, layout and PDF generation all happen in th
 
 Artwork stays in memory only. `localStorage` under `pmg-settings` holds page size and the numbering toggle.
 
-GitHub Pages deploys on push to `main`. `vite.config.ts` sets `base: './'`, which also lets the built bundle run from `file://`.
+GitHub Pages serves the site from the Actions workflow. On this fork the `on: push` trigger does not
+fire — GitHub gates push-triggered workflows on forks — so a deploy needs
+`gh workflow run deploy.yml --ref main` until someone enables workflows from the repository's Actions tab.
+`vite.config.ts` sets `base: './'`, which also lets the built bundle run from `file://`.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on `Seigiard/printableminimaker`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` and `docs/adr/` at the repo root, both created lazily. See `docs/agents/domain.md`.
