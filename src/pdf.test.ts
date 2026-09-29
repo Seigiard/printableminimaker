@@ -17,30 +17,42 @@ const identity: Matrix = [1, 0, 0, 1, 0, 0];
 const point = (m: Matrix, x: number, y: number): Point => ({
   x: m[0] * x + m[2] * y + m[4], y: m[1] * x + m[3] * y + m[5],
 });
-// Since tabs replaced the full cut rectangle, a mini's extent is the span of
-// its two tab outlines rather than a rectangle of its own.
-const span = (bottomTab: Box, topTab: Box): Box => ({
-  left: bottomTab.left, right: bottomTab.right,
-  bottom: bottomTab.bottom, top: topTab.top,
-});
 
 const bounds = (points: Point[]): Box => ({
   left: Math.min(...points.map(p => p.x)), right: Math.max(...points.map(p => p.x)),
   bottom: Math.min(...points.map(p => p.y)), top: Math.max(...points.map(p => p.y)),
 });
 
+const PT_PER_MM = 72 / 25.4;
+const asMm = (pt: number) => Math.round(pt / PT_PER_MM * 1e6) / 1e6;
+const widthMm = (box: Box) => asMm(box.right - box.left);
+const inside = (inner: Box, outer: Box) =>
+  inner.left > outer.left && inner.right < outer.right
+  && inner.bottom > outer.bottom && inner.top < outer.top;
+
+// A tab is the base's width, not the mini's, so nothing here may address a
+// shape by its position in the stream. Every shape carries the role the PDF
+// itself reveals: a stroked closed path is a tab outline, a filled one a
+// badge, a two-point stroke the fold line, and a negative CTM marks the back
+// face. Assertions name those roles.
+type Role = 'tab' | 'badge' | 'fold' | 'image' | 'text';
+type Text = { label: string; size: number; direction: number; position: Point };
+type Shape = { role: Role; flipped: boolean; box: Box; text?: Text };
+
+type Face = { image: Box; badge?: Box; text?: Text };
+type Mini = { bottomTab: Box; topTab: Box; fold: Box; extent: Box; front: Face; back: Face };
+
 // Read geometry from the saved PDF's graphics operators, not drawing helpers.
-async function inspect(bytes: Uint8Array) {
+async function read(bytes: Uint8Array) {
   const pdf = await PDFDocument.load(bytes);
-  const rectangles: Box[] = [];
-  const images: Box[] = [];
-  const texts: { label: string; size: number; direction: number; position: Point }[] = [];
+  const shapes: Shape[] = [];
   for (const page of pdf.getPages()) {
     const contents = page.node.Contents();
     assert.ok(contents instanceof PDFArray);
     let matrix: Matrix = [...identity];
     const stack: Matrix[] = [];
     let path: Point[] = [];
+    let closed = false;
     let textMatrix: Matrix = [...identity];
     let size = 0;
     for (let i = 0; i < contents.size(); i++) {
@@ -50,6 +62,7 @@ async function inspect(bytes: Uint8Array) {
         const tokens = line.trim().split(/\s+/);
         const op = tokens.pop();
         const n = tokens.map(Number);
+        const flipped = matrix[0] < 0;
         if (op === 'q') stack.push([...matrix]);
         if (op === 'Q') matrix = stack.pop()!;
         if (op === 'cm') {
@@ -58,23 +71,72 @@ async function inspect(bytes: Uint8Array) {
           const origin = point(matrix, e, f);
           matrix = [g * a + j * b, h * a + k * b, g * c + j * d, h * c + k * d, origin.x, origin.y];
         }
-        if (op === 'm') path = [point(matrix, n[0], n[1])];
+        if (op === 'm') { path = [point(matrix, n[0], n[1])]; closed = false; }
         if (op === 'l') path.push(point(matrix, n[0], n[1]));
-        if (op === 'h') rectangles.push(bounds(path));
-        if (op === 'Do') images.push(bounds([
+        if (op === 'h') closed = true;
+        // Painting ends a path and names it: filled and stroked is a badge,
+        // stroked and closed a tab outline, a stroked segment the fold line.
+        if (op === 'S' || op === 'B') {
+          const role: Role = op === 'B' ? 'badge' : closed ? 'tab' : 'fold';
+          shapes.push({ role, flipped, box: bounds(path) });
+          path = [];
+          closed = false;
+        }
+        if (op === 'Do') shapes.push({ role: 'image', flipped, box: bounds([
           point(matrix, 0, 0), point(matrix, 1, 0), point(matrix, 0, 1), point(matrix, 1, 1),
-        ]));
+        ]) });
         if (op === 'Tf') size = n[1];
         if (op === 'Tm') textMatrix = n as Matrix;
-        if (op === 'Tj') texts.push({
-          label: Buffer.from(tokens[0].slice(1, -1), 'hex').toString(), size,
-          direction: matrix[0] * textMatrix[0] + matrix[2] * textMatrix[1],
-          position: point(matrix, textMatrix[4], textMatrix[5]),
-        });
+        if (op === 'Tj') {
+          const position = point(matrix, textMatrix[4], textMatrix[5]);
+          shapes.push({
+            role: 'text', flipped, box: bounds([position]),
+            text: {
+              label: Buffer.from(tokens[0].slice(1, -1), 'hex').toString(), size,
+              direction: matrix[0] * textMatrix[0] + matrix[2] * textMatrix[1],
+              position,
+            },
+          });
+        }
       }
     }
   }
-  return { rectangles, images, texts, pages: pdf.getPageCount() };
+  return {
+    shapes,
+    minis: minis(shapes),
+    texts: shapes.filter(s => s.role === 'text').map(s => s.text!),
+    pages: pdf.getPageCount(),
+  };
+}
+
+// drawMini emits one mini's shapes in a run that the fold line closes, so the
+// fold is the separator. Within a run, role and face place every shape.
+function minis(shapes: Shape[]): Mini[] {
+  const runs: Shape[][] = [];
+  let run: Shape[] = [];
+  for (const shape of shapes) {
+    run.push(shape);
+    if (shape.role === 'fold') { runs.push(run); run = []; }
+  }
+  return runs.map((group) => {
+    const pick = (role: Role, flipped: boolean) => group.find(s => s.role === role && s.flipped === flipped);
+    const tabs = group.filter(s => s.role === 'tab').sort((a, b) => a.box.bottom - b.box.bottom);
+    assert.equal(tabs.length, 2, 'a mini draws two tab outlines');
+    const [bottomTab, topTab] = tabs.map(s => s.box);
+    const fold = pick('fold', false)!.box;
+    const face = (flipped: boolean): Face => ({
+      image: pick('image', flipped)!.box,
+      badge: pick('badge', flipped)?.box,
+      text: pick('text', flipped)?.text,
+    });
+    return {
+      bottomTab, topTab, fold,
+      // The mini's own extent: the fold line runs the full reserved column,
+      // while the tabs mark its bottom and top.
+      extent: { left: fold.left, right: fold.right, bottom: bottomTab.bottom, top: topTab.top },
+      front: face(false), back: face(true),
+    };
+  });
 }
 
 const artwork = {
@@ -83,30 +145,35 @@ const artwork = {
 };
 const entry: Entry = { image: null, artwork, size: 'tiny', count: 1 };
 
+// 3x2 px: at Tiny's 24 mm figure height the figure prints 36 mm wide over a
+// 20 mm base, overhanging it and staying under the width cap.
+const wide: Entry = { ...entry, artwork: {
+  bytes: Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAASFvFNAAAADklEQVR4nGNwgAEGOAsALRQEgQjZfUEAAAAASUVORK5CYII=', 'base64')),
+  format: 'png', width: 3, height: 2,
+} };
+
 await t('both Tiny badges sit below the artwork in each face orientation', async () => {
   // #given
   const opts = { pageSize: 'a4', numberDuplicates: true } as const;
   // #when
-  const { rectangles, images, texts } = await inspect(await generatePDF([entry], opts));
+  const sheet = await read(await generatePDF([entry], opts));
   // #then
-  const [bottomTab, topTab, front, back] = rectangles;
-  const outline = span(bottomTab, topTab);
+  const [mini] = sheet.minis;
   assert.deepEqual({
-    rectangles: rectangles.length, images: images.length,
-    frontBelow: front.top < images[0].bottom,
-    backBelow: back.bottom > images[1].top,
-    frontInside: front.bottom > outline.bottom && front.left > outline.left && front.right < outline.right,
-    backInside: back.top < outline.top && back.left > outline.left && back.right < outline.right,
-    labels: texts.map(text => text.label), directions: texts.map(text => text.direction),
-    readable: texts.map(text => text.size >= 6),
-    textInsideBadge: texts.map((text, i) => {
-      const badge = rectangles[i + 2];
-      return text.position.x > badge.left && text.position.x < badge.right
-        && text.position.y > badge.bottom && text.position.y < badge.top;
-    }),
+    minis: sheet.minis.length, shapes: sheet.shapes.length,
+    frontBelow: mini.front.badge!.top < mini.front.image.bottom,
+    backBelow: mini.back.badge!.bottom > mini.back.image.top,
+    frontInside: inside(mini.front.badge!, mini.extent),
+    backInside: inside(mini.back.badge!, mini.extent),
+    labels: sheet.texts.map(text => text.label), directions: sheet.texts.map(text => text.direction),
+    readable: sheet.texts.map(text => text.size >= 6),
+    textInsideBadge: [mini.front, mini.back].map((face) =>
+      face.text!.position.x > face.badge!.left && face.text!.position.x < face.badge!.right
+      && face.text!.position.y > face.badge!.bottom && face.text!.position.y < face.badge!.top),
   }, {
-    rectangles: 4, images: 2, frontBelow: true, backBelow: true,
-    frontInside: true, backInside: true, labels: ['1', '1'], directions: [1, -1], readable: [true, true],
+    minis: 1, shapes: 9, // two tabs, two images, two badges, two labels, one fold
+    frontBelow: true, backBelow: true, frontInside: true, backInside: true,
+    labels: ['1', '1'], directions: [1, -1], readable: [true, true],
     textInsideBadge: [true, true],
   });
 });
@@ -118,14 +185,13 @@ await t('height-clamped Tiny artwork keeps both badges at the right of the base'
     format: 'png', width: 1, height: 100,
   } };
   // #when
-  const { rectangles } = await inspect(await generatePDF([tall], { pageSize: 'a4', numberDuplicates: true }));
+  const { minis } = await read(await generatePDF([tall], { pageSize: 'a4', numberDuplicates: true }));
   // #then
-  const [bottomTab, topTab, front, back] = rectangles;
-  const outline = span(bottomTab, topTab);
-  const middle = (outline.left + outline.right) / 2;
+  const [mini] = minis;
+  const middle = (mini.extent.left + mini.extent.right) / 2;
   assert.deepEqual({
-    frontRight: front.left > middle && front.right < outline.right,
-    backRightAfterFolding: back.right < middle && back.left > outline.left,
+    frontRight: mini.front.badge!.left > middle && mini.front.badge!.right < mini.extent.right,
+    backRightAfterFolding: mini.back.badge!.right < middle && mini.back.badge!.left > mini.extent.left,
   }, { frontRight: true, backRightAfterFolding: true });
 });
 
@@ -135,23 +201,22 @@ for (const marginMm of [0, 2, 8]) {
     const entries: Entry[] = [{ ...entry, size: 'gargantuan' }, entry];
     const opts = { pageSize: 'a4', marginMm } as const;
     // #when
-    const numbered = await inspect(await generatePDF(entries, { ...opts, numberDuplicates: true }));
-    const plain = await inspect(await generatePDF(entries, { ...opts, numberDuplicates: false }));
+    const numbered = await read(await generatePDF(entries, { ...opts, numberDuplicates: true }));
+    const plain = await read(await generatePDF(entries, { ...opts, numberDuplicates: false }));
     // #then
     assert.deepEqual({
-      images: numbered.images, pages: numbered.pages,
-      tabs: numbered.rectangles.filter((_, i) => i % 4 < 2),
-      placement: [0, 1].map(i => {
-        const [bottomTab, topTab, front, back] = numbered.rectangles.slice(i * 4, i * 4 + 4);
-        const outline = span(bottomTab, topTab);
-        const frontImage = numbered.images[i * 2];
-        const backImage = numbered.images[i * 2 + 1];
-        return [front.bottom > outline.bottom, front.top < frontImage.bottom,
-          back.bottom > backImage.top, back.top < outline.top];
-      }),
+      pages: numbered.pages,
+      // Numbering adds badges and labels and moves nothing else.
+      layout: numbered.shapes.filter(s => s.role !== 'badge' && s.role !== 'text'),
+      placement: numbered.minis.map((mini) => [
+        mini.front.badge!.bottom > mini.extent.bottom,
+        mini.front.badge!.top < mini.front.image.bottom,
+        mini.back.badge!.bottom > mini.back.image.top,
+        mini.back.badge!.top < mini.extent.top,
+      ]),
       plainLabels: plain.texts,
     }, {
-      images: plain.images, pages: plain.pages, tabs: plain.rectangles,
+      pages: plain.pages, layout: plain.shapes,
       placement: [[true, true, true, true], [true, true, true, true]], plainLabels: [],
     });
   });
@@ -161,7 +226,7 @@ await t('each copy prints its own number on both faces', async () => {
   // #given
   const copies = { ...entry, count: 12 };
   // #when
-  const { texts } = await inspect(await generatePDF([copies], { pageSize: 'a4', numberDuplicates: true }));
+  const { texts } = await read(await generatePDF([copies], { pageSize: 'a4', numberDuplicates: true }));
   // #then
   assert.deepEqual(texts.map(text => text.label), [
     '1', '1', '2', '2', '3', '3', '4', '4', '5', '5', '6', '6',
@@ -176,12 +241,66 @@ await t('the height model prints one figure height for artworks of different pro
     format: 'png', width: 1, height: 100,
   } };
   // #when
-  const { images } = await inspect(await generatePDF([entry, sliver], {
+  const { minis } = await read(await generatePDF([entry, sliver], {
     pageSize: 'a4', numberDuplicates: false, marginMm: 0, sizingModel: 'height',
   }));
   // #then  Tiny is 24 mm tall in ADR-0002's table, front and back, for both entries
-  const mm = 72 / 25.4;
-  assert.deepEqual(images.map((box) => Math.round((box.top - box.bottom) / mm * 1e6) / 1e6), [24, 24, 24, 24]);
+  assert.deepEqual(
+    minis.flatMap(mini => [mini.front.image, mini.back.image]).map(box => asMm(box.top - box.bottom)),
+    [24, 24, 24, 24],
+  );
+});
+
+await t('the height model keeps a tab at its base width while the figure overhangs it', async () => {
+  // #when
+  const { minis } = await read(await generatePDF([wide], {
+    pageSize: 'a4', numberDuplicates: true, marginMm: 0, sizingModel: 'height',
+  }));
+  // #then  Tiny's 20 mm base, with the figure's 36 mm spread centred over it
+  const [mini] = minis;
+  assert.deepEqual({
+    bottomTab: widthMm(mini.bottomTab), topTab: widthMm(mini.topTab),
+    figure: widthMm(mini.front.image),
+    overhangLeft: asMm(mini.bottomTab.left - mini.front.image.left),
+    overhangRight: asMm(mini.front.image.right - mini.bottomTab.right),
+    tabsAligned: mini.bottomTab.left === mini.topTab.left,
+    // The badge marks the base, so it stays over the tab rather than drifting
+    // out to the overhanging figure's edge.
+    badgeOverBase: [mini.front.badge!, mini.back.badge!].map(badge =>
+      badge.left > mini.bottomTab.left && badge.right < mini.bottomTab.right),
+  }, {
+    bottomTab: 20, topTab: 20, figure: 36, overhangLeft: 8, overhangRight: 8,
+    tabsAligned: true, badgeOverBase: [true, true],
+  });
+});
+
+await t('the width model spans the tab across the whole mini', async () => {
+  // #when
+  const { minis } = await read(await generatePDF([entry], {
+    pageSize: 'a4', numberDuplicates: false, marginMm: 2,
+  }));
+  // #then  Tiny's 12.5 mm base plus a 2 mm margin on each side, as it prints today
+  const [mini] = minis;
+  assert.deepEqual({
+    bottomTab: widthMm(mini.bottomTab), topTab: widthMm(mini.topTab),
+    flushLeft: mini.bottomTab.left === mini.extent.left,
+    flushRight: mini.bottomTab.right === mini.extent.right,
+  }, { bottomTab: 16.5, topTab: 16.5, flushLeft: true, flushRight: true });
+});
+
+await t('the fold line spans the reserved column, overhang and margins included', async () => {
+  // #when
+  const { minis } = await read(await generatePDF([wide], {
+    pageSize: 'a4', numberDuplicates: false, marginMm: 2, sizingModel: 'height',
+  }));
+  // #then  the crease has to cross every part of the cut-out, not just the base
+  const [mini] = minis;
+  assert.deepEqual({
+    fold: widthMm(mini.fold), tab: widthMm(mini.bottomTab), figure: widthMm(mini.front.image),
+    crossesFigure: mini.fold.left < mini.front.image.left && mini.fold.right > mini.front.image.right,
+    atVerticalCentre: asMm(mini.fold.bottom - mini.extent.bottom)
+      === asMm(mini.extent.top - mini.fold.top),
+  }, { fold: 40, tab: 20, figure: 36, crossesFigure: true, atVerticalCentre: true });
 });
 
 await t('naming the width model leaves the sheet as it is today', async () => {
@@ -189,9 +308,9 @@ await t('naming the width model leaves the sheet as it is today', async () => {
   const entries: Entry[] = [{ ...entry, size: 'gargantuan' }, entry];
   const opts = { pageSize: 'a4', numberDuplicates: true, marginMm: 2 } as const;
   // #when
-  const named = await inspect(await generatePDF(entries, { ...opts, sizingModel: 'width' }));
+  const named = await read(await generatePDF(entries, { ...opts, sizingModel: 'width' }));
   // #then
-  assert.deepEqual(named, await inspect(await generatePDF(entries, opts)));
+  assert.deepEqual(named, await read(await generatePDF(entries, opts)));
 });
 
 console.log(`\n${passed} passed`);

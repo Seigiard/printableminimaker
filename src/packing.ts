@@ -24,7 +24,8 @@ export type PackedMini = {
   copyIndex: number; // 0-based copy within the entry
   size: DnDSize;
   baseWidthMm: number; // tab footprint, fixed by the size category
-  totalWidthMm: number; // the wider of figure and base, plus margins — outline, tabs, packing
+  totalWidthMm: number; // the wider of figure and base, plus margins — reserved column, fold line, packing
+  tabWidthMm: number; // drawn tab outline, centred in the reserved column
   marginMm: number;
   imageWidthMm: number; // drawn image width; may exceed baseWidthMm under the height model
   imageHeightMm: number;
@@ -108,6 +109,11 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
     const contentWidthMm = Math.max(baseWidthMm, imageWidthMm);
     const totalWidthMm = contentWidthMm + marginMm * 2;
     const imageOffsetXMm = marginMm + (contentWidthMm - imageWidthMm) / 2;
+    // The tab keeps the base's width so a wide pose claims no more table than
+    // a narrow creature of the same category; the figure overhangs it instead.
+    // Under the width model a figure never overhangs, and the tab spans the
+    // whole mini as it always has. #19 drops that branch with the switch.
+    const tabWidthMm = sizingModel === 'height' ? baseWidthMm : totalWidthMm;
     const totalHeightMm = imageHeightMm * 2 + marginMm * 4 + TAB_HEIGHT_MM * 2;
     for (let i = 0; i < e.count; i++) {
       minis.push({
@@ -116,6 +122,7 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
         size: e.size,
         baseWidthMm,
         totalWidthMm,
+        tabWidthMm,
         marginMm,
         imageWidthMm,
         imageHeightMm,
