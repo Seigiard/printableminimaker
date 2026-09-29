@@ -29,10 +29,12 @@ Small and Medium control the same space in the rules and differ only in real hei
 
 ## Consequences
 
-`MAX_HEIGHT_RATIO` existed because width led: without it a tall image scaled to a fixed width grew unbounded, and a Small mini could out-top a Large one. Height now comes from the category, so that cap has no work. The mirror problem appears on the other axis, and a width cap of about twice the base width replaces it. On hitting the cap the whole figure scales down, giving up a little height; artwork is never cropped.
+`MAX_HEIGHT_RATIO` existed because width led: without it a tall image scaled to a fixed width grew unbounded, and a Small mini could out-top a Large one. Height now comes from the category, so that cap had no work left and is gone. The mirror problem appears on the other axis, and a width cap of about twice the base width replaced it. On hitting the cap the whole figure scales down, giving up a little height; artwork is never cropped.
 
 A figure may be wider than its base, so a mini reserves the greater of figure width and base width, plus its margins. That could not happen before.
 
-Both models ship behind a switch until they can be compared on real artwork, and the loser is removed. Two permanent sizing models would cost more than either.
+Both models shipped behind a switch until they could be compared on real artwork. On a sheet of party and monster art the width model printed the halfling as the tallest humanoid on the page — taller than the dwarf, level with the lich — because the art fills its canvas, width was pinned to the base, and height followed the aspect ratio, so the framing of whoever drew the piece decided the scale. The height model won and #19 removed the switch, `SIZE_WIDTH_MM` and the losing branch.
+
+One category still means one height, and a category spans an octave of real height: 4 to 8 feet for Medium. A dwarf and a bugbear therefore print the same. That is a limit of the six-row table rather than of height-driven sizing, and #24 proposes regrading it.
 
 Measuring height from the artwork's bounding box means a raised weapon eats into the figure's height, printing that mini shorter. Accepted for now, and revisited if real artwork makes it common.

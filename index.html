@@ -47,18 +47,6 @@
         </label>
       </section>
 
-      <details>
-        <summary>Experimental sizing</summary>
-        <label>
-          Sizing model
-          <select id="sizing-model" aria-describedby="sizing-model-note">
-            <option value="width" selected>Base width (current)</option>
-            <option value="height">Figure height (preview)</option>
-          </select>
-        </label>
-        <p id="sizing-model-note" class="hint">Compare the two ways of sizing a mini; both change page counts, size warnings and generated PDFs straight away. Base width is what ships today. Figure height uses its own table of bases and heights, so every mini of a size category prints the same height and its width follows the artwork — except very wide artwork, which is scaled down whole and prints a little short.</p>
-      </details>
-
       <!-- Drag-and-drop / multi-select. Large when empty, a slim strip once
            there are entries. -->
       <section
@@ -101,7 +89,7 @@
 
       <section id="rows" class="rows" aria-label="Mini entries"></section>
 
-      <p class="hint">Normalize artwork trims transparent or flat-colour margins. Details close to the background colour may also be trimmed. Turn it off to print the original artwork. A ! badge means the artwork could not be trimmed or the mini is too large.</p>
+      <p class="hint">A size category sets how tall a figure prints, and its width follows the artwork — except very wide artwork, which is scaled down whole and prints a little short. Normalize artwork trims transparent or flat-colour margins. Details close to the background colour may also be trimmed. Turn it off to print the original artwork. A ! badge means the artwork could not be trimmed or the mini is too large.</p>
 
       <footer class="support">
         <p class="support-text">Free and open source. If this saved you some prep time:</p>

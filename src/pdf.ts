@@ -43,7 +43,7 @@ export async function generatePDF(
   // undrawn. The packer's other drop path — a mini too large for the page —
   // still slips through here, so an oversized row costs its bytes.
   const valid = entries.filter(
-    (e) => e.artwork && e.count > 0 && hasPackableDimensions(e, opts.sizingModel),
+    (e) => e.artwork && e.count > 0 && hasPackableDimensions(e),
   ).map((e) => ({ ...e }));
   if (valid.length === 0) throw new Error('No valid entries to generate.');
 
@@ -113,10 +113,8 @@ function drawMini(
   // Bottom-up: tab, margin, front image, margin, fold,
   // margin, rotated back image, margin, tab.
 
-  // Cut guides for both tabs; cut around the figures freehand. Under the
-  // height model the tab is the base's width and a figure may overhang it on
-  // both sides; under the width model it spans the whole mini, as it always
-  // has, and nothing overhangs.
+  // Cut guides for both tabs; cut around the figures freehand. A tab is the
+  // base's width, so a figure may overhang it on both sides.
   const baseX = x + mm(mini.baseOffsetXMm);
   const tabX = x + mm(mini.tabOffsetXMm);
   for (const y of [yBottom, yBottom + totalH - tab]) {

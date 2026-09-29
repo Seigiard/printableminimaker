@@ -30,9 +30,8 @@ const inside = (inner: Box, outer: Box) =>
   inner.left > outer.left && inner.right < outer.right
   && inner.bottom > outer.bottom && inner.top < outer.top;
 
-// A tab is not reliably the width of its mini — under the height model it is
-// the base's — so nothing here may address a shape by its position in the
-// stream. Every shape carries the role the PDF
+// A tab is the width of its base, not of its mini, so nothing here may address
+// a shape by its position in the stream. Every shape carries the role the PDF
 // itself reveals: a stroked closed path is a tab outline, a filled one a
 // badge, a two-point stroke the fold line, and a negative CTM marks the back
 // face. Assertions name those roles.
@@ -179,7 +178,7 @@ await t('both Tiny badges sit below the artwork in each face orientation', async
   });
 });
 
-await t('height-clamped Tiny artwork keeps both badges at the right of the base', async () => {
+await t('a sliver of Tiny artwork keeps both badges at the right of the base', async () => {
   // #given
   const tall: Entry = { ...entry, artwork: {
     bytes: Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAABkCAYAAABHLFpgAAAAEklEQVR4nGP4z8Dwn2GUGEkEAJoCxzl9ksz2AAAAAElFTkSuQmCC', 'base64')),
@@ -235,7 +234,7 @@ await t('each copy prints its own number on both faces', async () => {
   ]);
 });
 
-await t('the height model prints one figure height for artworks of different proportions', async () => {
+await t('a size category prints one figure height for artworks of different proportions', async () => {
   // #given  a square and a 1x100 sliver, both Tiny
   const sliver: Entry = { ...entry, artwork: {
     bytes: Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAABkCAYAAABHLFpgAAAAEklEQVR4nGP4z8Dwn2GUGEkEAJoCxzl9ksz2AAAAAElFTkSuQmCC', 'base64')),
@@ -243,7 +242,7 @@ await t('the height model prints one figure height for artworks of different pro
   } };
   // #when
   const { minis } = await read(await generatePDF([entry, sliver], {
-    pageSize: 'a4', numberDuplicates: false, marginMm: 0, sizingModel: 'height',
+    pageSize: 'a4', numberDuplicates: false, marginMm: 0,
   }));
   // #then  Tiny is 24 mm tall in ADR-0002's table, front and back, for both entries
   assert.deepEqual(
@@ -252,10 +251,10 @@ await t('the height model prints one figure height for artworks of different pro
   );
 });
 
-await t('the height model keeps a tab at its base width while the figure overhangs it', async () => {
+await t('a tab keeps its base width while the figure overhangs it', async () => {
   // #when
   const { minis } = await read(await generatePDF([wide], {
-    pageSize: 'a4', numberDuplicates: true, marginMm: 0, sizingModel: 'height',
+    pageSize: 'a4', numberDuplicates: true, marginMm: 0,
   }));
   // #then  Tiny's 20 mm base, with the figure's 36 mm spread centred over it
   const [mini] = minis;
@@ -275,24 +274,10 @@ await t('the height model keeps a tab at its base width while the figure overhan
   });
 });
 
-await t('the width model spans the tab across the whole mini', async () => {
-  // #when
-  const { minis } = await read(await generatePDF([entry], {
-    pageSize: 'a4', numberDuplicates: false, marginMm: 2,
-  }));
-  // #then  Tiny's 12.5 mm base plus a 2 mm margin on each side, as it prints today
-  const [mini] = minis;
-  assert.deepEqual({
-    bottomTab: widthMm(mini.bottomTab), topTab: widthMm(mini.topTab),
-    flushLeft: mini.bottomTab.left === mini.extent.left,
-    flushRight: mini.bottomTab.right === mini.extent.right,
-  }, { bottomTab: 16.5, topTab: 16.5, flushLeft: true, flushRight: true });
-});
-
 await t('the fold line spans the reserved column, overhang and margins included', async () => {
   // #when
   const { minis } = await read(await generatePDF([wide], {
-    pageSize: 'a4', numberDuplicates: false, marginMm: 2, sizingModel: 'height',
+    pageSize: 'a4', numberDuplicates: false, marginMm: 2,
   }));
   // #then  the crease has to cross every part of the cut-out, not just the base
   const [mini] = minis;
@@ -304,32 +289,20 @@ await t('the fold line spans the reserved column, overhang and margins included'
   }, { fold: 40, tab: 20, figure: 36, crossesFigure: true, atVerticalCentre: true });
 });
 
-await t('the width model is what drawing falls back to when no model is named', async () => {
-  // #given
-  const entries: Entry[] = [{ ...entry, size: 'gargantuan' }, entry];
-  const opts = { pageSize: 'a4', numberDuplicates: true, marginMm: 2 } as const;
-  // #when
-  const named = await read(await generatePDF(entries, { ...opts, sizingModel: 'width' }));
-  // #then
-  assert.deepEqual(named, await read(await generatePDF(entries, opts)));
-});
-
-// The test above compares the code against itself, so it would not notice the
-// width model's own geometry moving. These are the literal millimetres it has
-// always printed.
-await t('the width model puts the badge a fixed step inside the base it marks', async () => {
-  // #when
+await t('the badge marks the base, a fixed step inside it', async () => {
+  // #when  square art at Medium prints 30 mm wide, so the 25 mm base sits
+  // 2.5 mm inside the figure and 4.5 mm inside the mini's own left edge
   const { minis } = await read(await generatePDF([{ ...entry, size: 'medium' }], {
     pageSize: 'a4', numberDuplicates: true, marginMm: 2,
   }));
-  // #then  a 25 mm base one margin in from the mini's left edge, badge at its right
+  // #then
   const [mini] = minis;
   const badge = mini.front.badge!;
   assert.deepEqual({
     baseLeftInset: asMm(badge.right + 0.8 * PT_PER_MM - mini.extent.left - 25 * PT_PER_MM),
     badgeWidth: widthMm(badge),
     badgeHeight: asMm(badge.top - badge.bottom),
-  }, { baseLeftInset: 2, badgeWidth: 5.5, badgeHeight: 4.675 });
+  }, { baseLeftInset: 4.5, badgeWidth: 5.5, badgeHeight: 4.675 });
 });
 
 console.log(`\n${passed} passed`);
