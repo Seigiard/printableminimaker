@@ -39,11 +39,14 @@ One printed, foldable miniature: a figure over its base, front and back, with th
 _Avoid_: Miniature, model, token
 
 **Base width**:
-The width of a mini's grid footprint on the table, fixed by its size category or given directly for a custom size. It determines the figure's scale. The margin adds paper outside this width.
-_Avoid_: Size, width
+The width of a mini's tab, fixed by its size category or given directly for a custom size. A convention rather than a measurement: it keeps the tab wide enough to stand and signals relative size, and it is not sized to cover a map square. Artwork may be wider and overhang it.
+_Avoid_: Size, width, footprint
 
 **Size category**:
-A named creature size — tiny, small, medium, large, huge, gargantuan — each mapping to a base width. `custom` sets a base width directly.
+A named creature size — tiny, small, medium, large, huge, gargantuan — each mapping to a figure height and a base width. `custom` sets them directly. Height is what creatures of one category share; width varies with build, pose and props.
+
+**Figure height**:
+How tall a figure prints, fixed by its size category. It is what scales a mini; the figure's width then follows the artwork's proportions, capped so a spread-out figure cannot run away.
 
 **Fold line**:
 The dotted line at a mini's vertical centre, where front and back meet when folded.
