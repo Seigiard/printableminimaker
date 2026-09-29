@@ -261,7 +261,7 @@ t('zero margin preserves the old numbered mini geometry', () => {
     widthMm: 25, heightMm: 66, items: [{
       entryIndex: 0, copyIndex: 0, size: 'medium', baseWidthMm: 25,
       imageWidthMm: 25, imageHeightMm: 25, imageOffsetXMm: 0,
-      totalWidthMm: 25, totalHeightMm: 66, marginMm: 0, label: '1',
+      totalWidthMm: 25, tabWidthMm: 25, totalHeightMm: 66, marginMm: 0, label: '1',
     }],
   }] }]);
 });
@@ -337,6 +337,33 @@ t('a custom entry without a figure height is not packable under the height model
     packMinis(entries, { pageSize: 'a4', numberDuplicates: false, sizingModel }).miniCount);
   // #then
   assert.deepEqual(counts, [1, 0]);
+});
+
+t('a tab keeps its base width while the figure overhangs it', () => {
+  // #given  wide art overhangs a Medium base, narrow art stays inside it
+  const entries = [
+    entry({ naturalWidth: 150, naturalHeight: 100 }),
+    entry({ naturalWidth: 100, naturalHeight: 300 }),
+  ];
+  // #when
+  const result = packMinis(entries, { ...heightOpts, marginMm: 2 });
+  // #then  both tabs are the category's base width, whatever the figure does
+  assert.deepEqual(result.pages[0].rows[0].items.map((mini) => [
+    mini.tabWidthMm, mini.baseWidthMm, mini.imageWidthMm, mini.totalWidthMm,
+  ]), [
+    [25, 25, 45, 49],
+    [25, 25, 10, 29],
+  ]);
+});
+
+t('the width model keeps the tab spanning the whole mini', () => {
+  // #given
+  const entries = [entry({})];
+  // #when
+  const result = packMinis(entries, { pageSize: 'a4', numberDuplicates: false, marginMm: 2 });
+  const mini = result.pages[0].rows[0].items[0];
+  // #then  margins included, as tabs have always been drawn
+  assert.deepEqual([mini.tabWidthMm, mini.totalWidthMm, mini.baseWidthMm], [29, 29, 25]);
 });
 
 t('minis are placed sorted by reserved width descending', () => {

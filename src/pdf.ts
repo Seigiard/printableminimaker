@@ -98,6 +98,7 @@ function drawMini(
   const yBottom = mm(yBottomMm);
   const w = mm(mini.totalWidthMm);
   const iw = mm(mini.imageWidthMm);
+  const tabW = mm(mini.tabWidthMm);
   const offX = mm(mini.imageOffsetXMm);
   const totalH = mm(mini.totalHeightMm);
   const tab = mm(TAB_HEIGHT_MM);
@@ -108,12 +109,19 @@ function drawMini(
   // Bottom-up: tab, margin, front image, margin, fold,
   // margin, rotated back image, margin, tab.
 
-  // Cut guides for both tabs; cut around the figures freehand.
+  // The base sits centred in the reserved column: an overhanging figure widens
+  // that column symmetrically around it, and under the width model there is no
+  // overhang and the base sits one margin in, as before.
+  const baseX = x + (w - mm(mini.baseWidthMm)) / 2;
+
+  // Cut guides for both tabs; cut around the figures freehand. The tab is the
+  // base, centred the same way, so a figure may overhang it on both sides.
+  const tabX = x + (w - tabW) / 2;
   for (const y of [yBottom, yBottom + totalH - tab]) {
     pdfPage.drawRectangle({
-      x,
+      x: tabX,
       y,
-      width: w,
+      width: tabW,
       height: tab,
       borderColor: LIGHT_GREY,
       borderWidth: stroke,
@@ -129,10 +137,6 @@ function drawMini(
   });
 
   // Front label — below the image, extending into the tab if the margin is narrow.
-  // The base sits centred in the reserved column. A figure that overhangs it
-  // widens that column and pushes the base inwards; under the width model the
-  // figure never overhangs, so this is exactly zero and the badge is unmoved.
-  const baseX = x + margin + mm(Math.max(0, mini.imageWidthMm - mini.baseWidthMm) / 2);
   if (mini.label) {
     drawLabelBadge(
       pdfPage,
@@ -162,7 +166,9 @@ function drawMini(
   }
   pdfPage.pushOperators(popGraphicsState());
 
-  // Fold line — dotted, at the unfolded mini's vertical centre.
+  // Fold line — dotted, at the unfolded mini's vertical centre. It spans the
+  // reserved column rather than the tab: the crease has to cross every part of
+  // the cut-out piece, an overhanging figure's wings included.
   const foldY = yBottom + tab + imgH + margin * 2;
   pdfPage.drawLine({
     start: { x, y: foldY },
