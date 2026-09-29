@@ -17,6 +17,13 @@ const identity: Matrix = [1, 0, 0, 1, 0, 0];
 const point = (m: Matrix, x: number, y: number): Point => ({
   x: m[0] * x + m[2] * y + m[4], y: m[1] * x + m[3] * y + m[5],
 });
+// Since tabs replaced the full cut rectangle, a mini's extent is the span of
+// its two tab outlines rather than a rectangle of its own.
+const span = (bottomTab: Box, topTab: Box): Box => ({
+  left: bottomTab.left, right: bottomTab.right,
+  bottom: bottomTab.bottom, top: topTab.top,
+});
+
 const bounds = (points: Point[]): Box => ({
   left: Math.min(...points.map(p => p.x)), right: Math.max(...points.map(p => p.x)),
   bottom: Math.min(...points.map(p => p.y)), top: Math.max(...points.map(p => p.y)),
@@ -82,7 +89,8 @@ await t('both Tiny badges sit below the artwork in each face orientation', async
   // #when
   const { rectangles, images, texts } = await inspect(await generatePDF([entry], opts));
   // #then
-  const [outline, front, back] = rectangles;
+  const [bottomTab, topTab, front, back] = rectangles;
+  const outline = span(bottomTab, topTab);
   assert.deepEqual({
     rectangles: rectangles.length, images: images.length,
     frontBelow: front.top < images[0].bottom,
@@ -92,12 +100,12 @@ await t('both Tiny badges sit below the artwork in each face orientation', async
     labels: texts.map(text => text.label), directions: texts.map(text => text.direction),
     readable: texts.map(text => text.size >= 6),
     textInsideBadge: texts.map((text, i) => {
-      const badge = rectangles[i + 1];
+      const badge = rectangles[i + 2];
       return text.position.x > badge.left && text.position.x < badge.right
         && text.position.y > badge.bottom && text.position.y < badge.top;
     }),
   }, {
-    rectangles: 3, images: 2, frontBelow: true, backBelow: true,
+    rectangles: 4, images: 2, frontBelow: true, backBelow: true,
     frontInside: true, backInside: true, labels: ['1', '1'], directions: [1, -1], readable: [true, true],
     textInsideBadge: [true, true],
   });
@@ -112,7 +120,8 @@ await t('height-clamped Tiny artwork keeps both badges at the right of the base'
   // #when
   const { rectangles } = await inspect(await generatePDF([tall], { pageSize: 'a4', numberDuplicates: true }));
   // #then
-  const [outline, front, back] = rectangles;
+  const [bottomTab, topTab, front, back] = rectangles;
+  const outline = span(bottomTab, topTab);
   const middle = (outline.left + outline.right) / 2;
   assert.deepEqual({
     frontRight: front.left > middle && front.right < outline.right,
@@ -131,9 +140,10 @@ for (const marginMm of [0, 2, 8]) {
     // #then
     assert.deepEqual({
       images: numbered.images, pages: numbered.pages,
-      outlines: numbered.rectangles.filter((_, i) => i % 3 === 0),
+      tabs: numbered.rectangles.filter((_, i) => i % 4 < 2),
       placement: [0, 1].map(i => {
-        const [outline, front, back] = numbered.rectangles.slice(i * 3, i * 3 + 3);
+        const [bottomTab, topTab, front, back] = numbered.rectangles.slice(i * 4, i * 4 + 4);
+        const outline = span(bottomTab, topTab);
         const frontImage = numbered.images[i * 2];
         const backImage = numbered.images[i * 2 + 1];
         return [front.bottom > outline.bottom, front.top < frontImage.bottom,
@@ -141,7 +151,7 @@ for (const marginMm of [0, 2, 8]) {
       }),
       plainLabels: plain.texts,
     }, {
-      images: plain.images, pages: plain.pages, outlines: plain.rectangles,
+      images: plain.images, pages: plain.pages, tabs: plain.rectangles,
       placement: [[true, true, true, true], [true, true, true, true]], plainLabels: [],
     });
   });
