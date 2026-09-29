@@ -20,7 +20,7 @@ Vanilla TypeScript SPA: image decode, layout and PDF generation all happen in th
 
 **`src/packing.ts` is the single source of layout truth.** Pure module — no DOM, no `pdf-lib`. Both `main.ts` and `pdf.ts` call `packEntries()`, which projects artwork dimensions into the geometry-only `packMinis()` input. New layout constants and rules belong here so the estimate and the output stay in step.
 
-Each `PackedMini` carries three widths and they are not interchangeable. `baseWidthMm` is the base's footprint, fixed by the size category. `totalWidthMm` is the wider of figure and base plus a figure margin on each side, and sets the reserved column and the fold-line span — under the height model a figure may overhang its base, which is why the reservation takes the greater of the two. `tabWidthMm` is what the tab outlines are drawn at: the base width under the height model, so a wide pose claims no more table than a narrow creature of its category, and the whole reserved column under the width model, where tabs have always spanned the mini.
+Each `PackedMini` carries three widths, and reaching for the wrong one is a silent bug. `baseWidthMm` is the base's footprint, fixed by the size category. `totalWidthMm` reserves the wider of figure and base plus a figure margin each side, and spans the fold line — a figure may overhang its base. `tabWidthMm` is what the tab outlines are drawn at: the base under the height model, the whole reserved column under the width model.
 
 **`Entry.artwork` is what the whole pipeline reads** — thumbnails, estimates and PDFs alike. It holds either the prepared original or the trimmed derivative, and is `null` while loading. `Entry.image` keeps the original `File`, so turning normalization off re-derives instead of asking the user to upload again.
 
@@ -38,7 +38,7 @@ Each `PackedMini` carries three widths and they are not interchangeable. `baseWi
 
 **Per-mini geometry.** Unfolded, bottom to top: front tab, margin, front image, margin, fold line, margin, back image, margin, back tab. Across the mini, base and tab are centred in the reserved column and the figure is centred over them, so an overhang is symmetric; the fold line spans the whole column, because the crease has to cross every part of the cut-out piece. The back face is drawn under a 180° CTM (`concatTransformationMatrix(-1, 0, 0, -1, …)`) between `pushGraphicsState`/`popGraphicsState`, so its number badge uses the same local coordinates as the front one and lands in the matching visual corner.
 
-**Deleting a sizing model means finding every branch on it, and they are not all in one place.** Geometry branches twice: `fitFigure` in `sizes.ts` decides the figure's size, `packMinis` in `packing.ts` decides the tab's width, and both reach the model through `PackOptions.sizingModel`, threaded once rather than added to every signature between. `drawMini` is clean — it draws the packed geometry and never asks which model produced it — but `generatePDF` does branch, sharing the packer's dimension rule so it embeds artwork only for rows that will be drawn. `main.ts` branches three more times: the size labels in `sizeLabel()`, and the per-row custom figure-height field's visibility, which is set in two places. Each model caps the axis the other one fixes: the width model scales to the base width and `MAX_HEIGHT_RATIO` caps height at 1.5× it, so a Large mini always permits a taller figure than a Small one; the height model takes the height from the size category and `MAX_WIDTH_RATIO` caps width at 2× the base. Either cap scales the whole figure down and centres it over its footprint (`imageOffsetXMm`), aspect preserved, uncropped. `sizes.test.ts` guards both.
+**Two sizing models ship behind a switch, and #19 deletes the loser.** Each caps the axis the other fixes: the width model scales to the base width and `MAX_HEIGHT_RATIO` caps height at 1.5× it, so a Large mini always permits a taller figure than a Small one; the height model takes height from the size category and `MAX_WIDTH_RATIO` caps width at 2× the base. Either cap scales the whole figure down, aspect preserved, uncropped, and `sizes.test.ts` guards both. The model rides in `PackOptions.sizingModel` rather than in every signature between; `grep sizingModel` is how you find the branches, and there are more of them than the two in `sizes.ts` and `packing.ts`.
 
 **`index.html` owns the DOM contract.** `main.ts` queries fixed element ids with non-null casts at module load, so renaming an id breaks the app at startup with no type error. Row-list changes rebuild the DOM: mutate `rows`, call `render()`. Artwork loads asynchronously and races: a result publishes only while its entry still holds that load's token and still sits in `rows`, and it patches its own thumbnail rather than re-rendering, which keeps focus in an editable field.
 
@@ -46,12 +46,12 @@ Each `PackedMini` carries three widths and they are not interchangeable. `baseWi
 
 `SPEC.md` is the v1 spec, and the code has outgrown it — trimming shipped, for one. Read it for the exclusions it argues and the code still honours: URL paste (image hosts send no permissive CORS headers, so a fetch→canvas→PDF path fails wherever the site is hosted), knockout, separate front/back artwork.
 
-Artwork stays in memory only. `localStorage` under `pmg-settings` holds page size, figure margin, the numbering toggle, the normalization toggle and `sizingModel`. The model selection is a temporary preview setting, and #19 removes the losing model and the switch with it.
+Artwork stays in memory only. `localStorage` under `pmg-settings` holds page size, figure margin, the numbering toggle, the normalization toggle and `sizingModel`.
 
 GitHub Pages deploys from the Actions workflow on push to `main`. `vite.config.ts` sets `base: './'`, which also lets the built bundle run from `file://`.
 
 ## Agent skills
 
-- **Filing, reading, labelling or closing an issue** — GitHub Issues on `Seigiard/printableminimaker` via `gh`, plus the wayfinder map conventions: `docs/agents/issue-tracker.md`.
-- **Triaging** — the five canonical roles, each label string equal to its name, all five live in the tracker: `docs/agents/triage-labels.md`.
+- **Touching an issue** — GitHub Issues on `Seigiard/printableminimaker` via `gh`: `docs/agents/issue-tracker.md`.
+- **Triaging** — the five canonical roles, each label string equal to its name: `docs/agents/triage-labels.md`.
 - **Exploring the codebase** — the glossary in `CONTEXT.md` and the ADRs in `docs/adr/`, and when to read each: `docs/agents/domain.md`.
