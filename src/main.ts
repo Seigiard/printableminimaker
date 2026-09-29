@@ -2,8 +2,8 @@ import { generatePDF, buildFilename } from './pdf';
 import { DEFAULT_FIGURE_MARGIN_MM, packEntries, type PageSizeKey } from './packing';
 import { prepareArtwork } from './artwork';
 import { normalizeArtwork } from './normalization';
-import { DEFAULT_CUSTOM_WIDTH_MM, DEFAULT_CUSTOM_HEIGHT_MM, SIZE_DIMENSIONS_MM, SIZE_LABELS, SIZE_WIDTH_MM } from './sizes';
-import type { PreparedArtwork, DnDPresetSize, DnDSize, Entry, SizingModel } from './types';
+import { DEFAULT_CUSTOM_WIDTH_MM, DEFAULT_CUSTOM_HEIGHT_MM, SIZE_DIMENSIONS_MM, SIZE_NAMES, sizeLabel } from './sizes';
+import type { PreparedArtwork, DnDPresetSize, DnDSize, Entry } from './types';
 
 const rows: Entry[] = [];
 let generating = false;
@@ -14,7 +14,6 @@ const pageSizeSel = document.getElementById('page-size') as HTMLSelectElement;
 const figureMarginEl = document.getElementById('figure-margin') as HTMLInputElement;
 const numberDuplicatesEl = document.getElementById('number-duplicates') as HTMLInputElement;
 const normalizeArtworkEl = document.getElementById('normalize-artwork') as HTMLInputElement;
-const sizingModelSel = document.getElementById('sizing-model') as HTMLSelectElement;
 const dropzone = document.getElementById('dropzone') as HTMLElement;
 const fileInput = document.getElementById('file-input') as HTMLInputElement;
 const rowsToolbar = document.getElementById('rows-toolbar') as HTMLElement;
@@ -35,19 +34,13 @@ let pageSize: PageSizeKey = pageSizeSel.value as PageSizeKey;
 let numberDuplicates = numberDuplicatesEl.checked;
 let normalization = normalizeArtworkEl.checked;
 let marginMm = DEFAULT_FIGURE_MARGIN_MM;
-// Temporary comparison setting; #19 removes the losing model and this switch.
-let sizingModel: SizingModel = 'width';
 figureMarginEl.value = String(marginMm);
 
 function loadSettings() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return;
-    const s = JSON.parse(raw) as { pageSize?: string; numberDuplicates?: boolean; normalization?: boolean; marginMm?: number; sizingModel?: string };
-    if (s.sizingModel === 'width' || s.sizingModel === 'height') {
-      sizingModel = s.sizingModel;
-      sizingModelSel.value = sizingModel;
-    }
+    const s = JSON.parse(raw) as { pageSize?: string; numberDuplicates?: boolean; normalization?: boolean; marginMm?: number };
     if (s.pageSize === 'a4' || s.pageSize === 'letter') {
       pageSize = s.pageSize;
       pageSizeSel.value = s.pageSize;
@@ -71,7 +64,7 @@ function loadSettings() {
 
 function saveSettings() {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify({ pageSize, numberDuplicates, normalization, marginMm, sizingModel }));
+    localStorage.setItem(LS_KEY, JSON.stringify({ pageSize, numberDuplicates, normalization, marginMm }));
   } catch {
     // Storage may be disabled (private mode); persistence is best-effort.
   }
@@ -236,10 +229,10 @@ function buildRow(entry: Entry, index: number): HTMLElement {
   sizeWrap.append(fieldLabel('Size'));
 
   const sizeSel = document.createElement('select');
-  for (const [val, label] of Object.entries(SIZE_LABELS)) {
+  for (const val of Object.keys(SIZE_NAMES) as DnDSize[]) {
     const opt = document.createElement('option');
     opt.value = val;
-    opt.textContent = sizeLabel(val as DnDSize, label);
+    opt.textContent = sizeLabel(val);
     if (val === entry.size) opt.selected = true;
     sizeSel.appendChild(opt);
   }
@@ -269,7 +262,7 @@ function buildRow(entry: Entry, index: number): HTMLElement {
   const heightWrap = document.createElement('label');
   heightWrap.className = 'custom-height';
   heightWrap.textContent = 'Figure height (mm)';
-  heightWrap.hidden = entry.size !== 'custom' || sizingModel !== 'height';
+  heightWrap.hidden = entry.size !== 'custom';
   const heightInput = document.createElement('input');
   heightInput.type = 'number';
   heightInput.min = '1';
@@ -298,7 +291,7 @@ function buildRow(entry: Entry, index: number): HTMLElement {
     } else {
       customWrap.style.display = 'none';
     }
-    heightWrap.hidden = entry.size !== 'custom' || sizingModel !== 'height';
+    heightWrap.hidden = entry.size !== 'custom';
     updateCount();
   });
   el.appendChild(sizeWrap);
@@ -398,7 +391,7 @@ function render() {
 // Recomputes the live "N minis → M pages" readout, flags oversized rows, and
 // toggles the Generate button — all from the pure packing module.
 function updateCount() {
-  const result = packEntries(rows, { pageSize, numberDuplicates, marginMm, sizingModel });
+  const result = packEntries(rows, { pageSize, numberDuplicates, marginMm });
 
   const oversized = new Set(result.oversizedEntryIndices);
   rowEls.forEach((el, i) => {
@@ -440,13 +433,6 @@ function updateCount() {
 }
 
 // --- Settings wiring ---
-
-sizingModelSel.addEventListener('change', () => {
-  sizingModel = sizingModelSel.value as SizingModel;
-  saveSettings();
-  renderBulkSizes();
-  render();
-});
 
 figureMarginEl.addEventListener('input', () => {
   if (figureMarginEl.validity.valid) {
@@ -501,25 +487,19 @@ addBlankBtn.addEventListener('click', () => {
 
 // --- Bulk "set all to size" ---
 
-function sizeLabel(size: DnDSize, legacyLabel: string): string {
-  if (sizingModel === 'width' || size === 'custom') return legacyLabel;
-  const { baseWidthMm, figureHeightMm } = SIZE_DIMENSIONS_MM[size];
-  return `${size[0].toUpperCase()}${size.slice(1)} (${baseWidthMm} mm base / ${figureHeightMm} mm tall)`;
-}
-
 function renderBulkSizes() {
   while (bulkSizeSel.options.length > 1) bulkSizeSel.remove(1);
-  for (const [val, label] of Object.entries(SIZE_LABELS)) {
+  for (const val of Object.keys(SIZE_NAMES) as DnDSize[]) {
     if (val === 'custom') continue; // custom needs per-row dimensions
     const opt = document.createElement('option');
     opt.value = val;
-    opt.textContent = sizeLabel(val as DnDPresetSize, label);
+    opt.textContent = sizeLabel(val);
     bulkSizeSel.appendChild(opt);
   }
 }
 bulkSizeSel.addEventListener('change', () => {
   const size = bulkSizeSel.value as DnDPresetSize;
-  if (!SIZE_WIDTH_MM[size]) return;
+  if (!SIZE_DIMENSIONS_MM[size]) return;
   for (const entry of rows) entry.size = size;
   bulkSizeSel.value = '';
   render();
@@ -566,7 +546,7 @@ generateBtn.addEventListener('click', async () => {
   generateBtn.disabled = true;
   generateBtn.textContent = 'Generating…';
   try {
-    const bytes = await generatePDF(rows, { pageSize, numberDuplicates, marginMm, sizingModel });
+    const bytes = await generatePDF(rows, { pageSize, numberDuplicates, marginMm });
     const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

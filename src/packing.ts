@@ -1,4 +1,4 @@
-import type { DnDSize, Entry, PackingEntry, SizingModel } from './types';
+import type { DnDSize, Entry, PackingEntry } from './types';
 import { fitFigure, hasPackableDimensions, resolveSizeDimensionsMm } from './sizes.ts';
 
 // Page and layout constants. These live here (not in pdf.ts) so the packing
@@ -59,9 +59,6 @@ export type PackOptions = {
   pageSize: PageSizeKey;
   numberDuplicates: boolean;
   marginMm?: number;
-  // Threaded once, here, rather than added to every signature it would reach.
-  // Defaults to the shipped model; #19 removes it with the losing branch.
-  sizingModel?: SizingModel;
 };
 
 // Project prepared artwork into packing geometry without changing entry indices.
@@ -79,24 +76,22 @@ export function packEntries(entries: Entry[], opts: PackOptions): PackResult {
 // Expands entries into individual minis with resolved geometry, sorted by
 // reserved width descending, then bin-packs them into rows and pages within the
 // usable area. Entries lacking an image's natural dimensions or the dimensions
-// their sizing model needs are simply omitted (not yet packable) — under the
-// height model that includes a custom entry with no figure height, which is why
-// a row can vanish from the count with a perfectly good base width. Minis too
-// large for a single page are
+// sizing needs are simply omitted (not yet packable) — that includes a custom
+// entry with no figure height, which is why a row can vanish from the count
+// with a perfectly good base width. Minis too large for a single page are
 // reported as skipped rather than silently dropped.
 export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResult {
   const { w: pageWmm, h: pageHmm } = PAGE_SIZES_MM[opts.pageSize];
   const usableWmm = pageWmm - MARGIN_MM * 2;
   const usableHmm = pageHmm - MARGIN_MM * 2;
   const marginMm = opts.marginMm ?? DEFAULT_FIGURE_MARGIN_MM;
-  const sizingModel = opts.sizingModel ?? 'width';
 
   const minis: PackedMini[] = [];
   entries.forEach((e, entryIndex) => {
-    const dimensions = resolveSizeDimensionsMm(e, sizingModel);
+    const dimensions = resolveSizeDimensionsMm(e);
     const { baseWidthMm } = dimensions;
     if (
-      !hasPackableDimensions(e, sizingModel) ||
+      !hasPackableDimensions(e) ||
       e.count <= 0 ||
       e.naturalWidth == null ||
       e.naturalHeight == null ||
@@ -105,24 +100,20 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
     ) {
       return; // not packable yet
     }
-    const { imageWidthMm, imageHeightMm } = fitFigure(dimensions, e.naturalWidth, e.naturalHeight, sizingModel);
+    const { imageWidthMm, imageHeightMm } = fitFigure(dimensions, e.naturalWidth, e.naturalHeight);
     // A figure may overhang its base, so the reserved column is the wider of
-    // the two. Under the width model the figure never exceeds the base and
-    // this is the base width, as before.
+    // the two.
     const contentWidthMm = Math.max(baseWidthMm, imageWidthMm);
     const totalWidthMm = contentWidthMm + marginMm * 2;
     const imageOffsetXMm = marginMm + (contentWidthMm - imageWidthMm) / 2;
     // The tab keeps the base's width so a wide pose claims no more table than
     // a narrow creature of the same category; the figure overhangs it instead.
-    // Under the width model a figure never overhangs, and the tab spans the
-    // whole mini as it always has. #19 drops that branch with the switch.
-    const tabWidthMm = sizingModel === 'height' ? baseWidthMm : totalWidthMm;
+    const tabWidthMm = baseWidthMm;
     // Base, tab and figure share one centring rule. These two offsets are
-    // derived here rather than in the drawer because in millimetres they
-    // collapse to exactly a margin and exactly zero under the width model,
-    // which the same arithmetic in points does not. `drawMini` still derives
-    // the back badge's own offset, inside the flipped frame, from this rule —
-    // change it here and change it there.
+    // derived here in millimetres rather than in the drawer, because the same
+    // arithmetic in points does not land on the same numbers. `drawMini` still
+    // derives the back badge's own offset, inside the flipped frame, from this
+    // rule — change it here and change it there.
     const tabOffsetXMm = (totalWidthMm - tabWidthMm) / 2;
     const baseOffsetXMm = marginMm + (contentWidthMm - baseWidthMm) / 2;
     const totalHeightMm = imageHeightMm * 2 + marginMm * 4 + TAB_HEIGHT_MM * 2;
@@ -148,8 +139,8 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
 
   // Sort by reserved width descending so wide minis lead each row — reordering
   // rows in the UI has no effect on output, which is why drag-to-reorder is out
-  // of scope. Under the width model every mini reserves its base plus the same
-  // two margins, so this is the old base-width order unchanged.
+  // of scope. A narrow figure of a large category can reserve less than a wide
+  // one of a small category, so this is not base-width order.
   minis.sort((a, b) => b.totalWidthMm - a.totalWidthMm);
 
   const pages: PackedPage[] = [];

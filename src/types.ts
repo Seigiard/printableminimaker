@@ -1,9 +1,6 @@
 export type DnDPresetSize = 'tiny' | 'small' | 'medium' | 'large' | 'huge' | 'gargantuan';
 export type DnDSize = DnDPresetSize | 'custom';
 
-// Temporary comparison switch. Remove the losing model and setting in #19.
-export type SizingModel = 'width' | 'height';
-
 export type Entry = {
   image: File | null;
   artwork: PreparedArtwork | null;

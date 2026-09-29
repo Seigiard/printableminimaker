@@ -10,11 +10,13 @@ Review base: 9fe859ecb2c1fc5cd8a4b65702b99cf97fc1bd19
 - [x] #16 · two-column size table and a temporary sizing-model switch (landed on main in #21)
 - [x] #17 · scale a figure by its category's height, with a width cap
 - [x] #18 · keep the tab at its base width and let the figure overhang
-- [ ] #19 · remove the losing sizing model and its switch
-      blocked 2026-09-29: waits on which model wins, judged by looking at printed sheets
+- [x] #19 · remove the losing sizing model and its switch
 
-Both models therefore ship behind the switch, which defaults to the width model. One caveat:
-#16 shipped the switch while it was inert, so anyone who tried the preview then has
-`sizingModel: 'height'` saved under `pmg-settings`, and on this branch that setting takes
-effect. Their next visit shows the height model already selected, with the page count, the
-size warnings and the PDF to match.
+The chain is complete. The height model won the comparison on 2026-09-29, judged on two PDFs
+of the same seven rows: under the width model the halfling printed taller than the dwarf beside
+it. The switch, `SIZE_WIDTH_MM`, `MAX_HEIGHT_RATIO` and the `SizingModel` type are gone, and a
+`sizingModel` left in `pmg-settings` by either version is ignored and dropped on the next save.
+
+Follow-up: [#24](https://github.com/Seigiard/printableminimaker/issues/24) regrades the size
+table. One height per category is too coarse, because a category spans an octave of real
+height and Medium holds both the dwarf and the bugbear.
