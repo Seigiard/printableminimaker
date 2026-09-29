@@ -20,7 +20,7 @@ Vanilla TypeScript SPA: image decode, layout and PDF generation all happen in th
 
 **`src/packing.ts` is the single source of layout truth.** Pure module — no DOM, no `pdf-lib`. Both `main.ts` and `pdf.ts` call `packEntries()`, which projects artwork dimensions into the geometry-only `packMinis()` input. New layout constants and rules belong here so the estimate and the output stay in step.
 
-Each `PackedMini` carries two widths and they are not interchangeable. `baseWidthMm` sets the figure's scale; `totalWidthMm` is that plus a figure margin on each side, and sets the reserved width, tab outlines and fold-line span.
+Each `PackedMini` carries two widths and they are not interchangeable. `baseWidthMm` is the tab's footprint, fixed by the size category. `totalWidthMm` is the wider of figure and base plus a figure margin on each side, and sets the reserved width, tab outlines and fold-line span — under the height model a figure may overhang its base, which is why the reservation takes the greater of the two.
 
 **`Entry.artwork` is what the whole pipeline reads** — thumbnails, estimates and PDFs alike. It holds either the prepared original or the trimmed derivative, and is `null` while loading. `Entry.image` keeps the original `File`, so turning normalization off re-derives instead of asking the user to upload again.
 
@@ -38,7 +38,7 @@ Each `PackedMini` carries two widths and they are not interchangeable. `baseWidt
 
 **Per-mini geometry.** Unfolded, bottom to top: front tab, margin, front image, margin, fold line, margin, back image, margin, back tab. The back face is drawn under a 180° CTM (`concatTransformationMatrix(-1, 0, 0, -1, …)`) between `pushGraphicsState`/`popGraphicsState`, so its number badge uses the same local coordinates as the front one and lands in the matching visual corner.
 
-**`MAX_HEIGHT_RATIO` holds height monotonic with size category.** The cap in `sizes.ts` keeps image height at or under 1.5× the base width, so a Large mini always permits a taller figure than a Small one. Tall art is scaled down and centred over its footprint (`imageOffsetXMm`), aspect preserved, uncropped. `sizes.test.ts` guards this.
+**`fitFigure` in `sizes.ts` is where the two sizing models branch, and the only place they do.** The model reaches it through `PackOptions.sizingModel`, threaded once rather than added to every signature between. Each model caps the axis the other one fixes: the width model scales to the base width and `MAX_HEIGHT_RATIO` caps height at 1.5× it, so a Large mini always permits a taller figure than a Small one; the height model takes the height from the size category and `MAX_WIDTH_RATIO` caps width at 2× the base. Either cap scales the whole figure down and centres it over its footprint (`imageOffsetXMm`), aspect preserved, uncropped. `sizes.test.ts` guards both.
 
 **`index.html` owns the DOM contract.** `main.ts` queries fixed element ids with non-null casts at module load, so renaming an id breaks the app at startup with no type error. Row-list changes rebuild the DOM: mutate `rows`, call `render()`. Artwork loads asynchronously and races: a result publishes only while its entry still holds that load's token and still sits in `rows`, and it patches its own thumbnail rather than re-rendering, which keeps focus in an editable field.
 
@@ -46,7 +46,7 @@ Each `PackedMini` carries two widths and they are not interchangeable. `baseWidt
 
 `SPEC.md` is the v1 spec, and the code has outgrown it — trimming shipped, for one. Read it for the exclusions it argues and the code still honours: URL paste (image hosts send no permissive CORS headers, so a fetch→canvas→PDF path fails wherever the site is hosted), knockout, separate front/back artwork.
 
-Artwork stays in memory only. `localStorage` under `pmg-settings` holds page size, figure margin, the numbering toggle, the normalization toggle and `sizingModel`. The model selection is a temporary preview setting; #17 connects it to scaling and #19 removes the losing model and switch.
+Artwork stays in memory only. `localStorage` under `pmg-settings` holds page size, figure margin, the numbering toggle, the normalization toggle and `sizingModel`. The model selection is a temporary preview setting, and #19 removes the losing model and the switch with it.
 
 GitHub Pages deploys from the Actions workflow on push to `main`. `vite.config.ts` sets `base: './'`, which also lets the built bundle run from `file://`.
 

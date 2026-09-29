@@ -266,4 +266,90 @@ t('zero margin preserves the old numbered mini geometry', () => {
   }] }]);
 });
 
+// --- height-driven model (#17) ---
+
+const heightOpts = { pageSize: 'a4', numberDuplicates: false, sizingModel: 'height' } as const;
+
+t('a mini reserves the greater of figure width and base width, plus margins', () => {
+  // #given  wide art overhangs a Medium base; tall art stays well inside it
+  const entries = [
+    entry({ naturalWidth: 150, naturalHeight: 100 }),
+    entry({ naturalWidth: 100, naturalHeight: 300 }),
+  ];
+  // #when
+  const result = packMinis(entries, { ...heightOpts, marginMm: 2 });
+  // #then
+  assert.deepEqual(result.pages[0].rows[0].items.map((mini) => [
+    mini.baseWidthMm, mini.imageWidthMm, mini.imageHeightMm, mini.totalWidthMm, mini.imageOffsetXMm,
+  ]), [
+    [25, 45, 30, 49, 2],
+    [25, 10, 30, 29, 9.5],
+  ]);
+});
+
+t('overhanging figures never overlap their neighbours', () => {
+  // #given  four wide Medium figures, each overhanging its base
+  const entries = [entry({ naturalWidth: 150, naturalHeight: 100, count: 4 })];
+  // #when
+  const result = packMinis(entries, { ...heightOpts, marginMm: 2 });
+  // #then  walk each row the way the PDF drawer does
+  const rows = result.pages.flatMap((page) => page.rows).map((row) => {
+    let xMm = 0;
+    return row.items.map((mini) => {
+      const left = xMm + mini.imageOffsetXMm;
+      xMm += mini.totalWidthMm + GAP_MM;
+      return [left, left + mini.imageWidthMm];
+    });
+  });
+  assert.deepEqual({
+    figures: rows.flat().length,
+    overhanging: rows.flat().every(([left, right]) => right - left === 45),
+    overlapping: rows.some((figures) =>
+      figures.some(([, right], i) => i + 1 < figures.length && right > figures[i + 1][0])),
+  }, { figures: 4, overhanging: true, overlapping: false });
+});
+
+t('the new table changes how many minis reach a page', () => {
+  // #given  square art: 25 mm wide under the old table, 30 mm tall under the new one
+  const entries = [entry({ count: 19 })];
+  // #when
+  const counts = (['width', 'height'] as const).map((sizingModel) =>
+    packMinis(entries, { pageSize: 'a4', numberDuplicates: false, marginMm: 0, sizingModel }).pageCount);
+  // #then
+  assert.deepEqual(counts, [1, 2]);
+});
+
+t('naming the width model reproduces the default layout exactly', () => {
+  // #given
+  const entries = [entry({ count: 9, naturalWidth: 100, naturalHeight: 250 }), entry({ size: 'large', count: 3 })];
+  const opts = { pageSize: 'a4', numberDuplicates: true, marginMm: 2 } as const;
+  // #when
+  const named = packMinis(entries, { ...opts, sizingModel: 'width' });
+  // #then
+  assert.deepEqual(named, packMinis(entries, opts));
+});
+
+t('a custom entry without a figure height is not packable under the height model', () => {
+  // #given
+  const entries = [entry({ size: 'custom', customWidthMm: 30 })];
+  // #when
+  const counts = (['width', 'height'] as const).map((sizingModel) =>
+    packMinis(entries, { pageSize: 'a4', numberDuplicates: false, sizingModel }).miniCount);
+  // #then
+  assert.deepEqual(counts, [1, 0]);
+});
+
+t('minis are placed sorted by reserved width descending', () => {
+  // #given  a narrow Large figure reserves less paper than a wide Medium one
+  const entries = [
+    entry({ size: 'medium', naturalWidth: 150, naturalHeight: 100 }),
+    entry({ size: 'large', naturalWidth: 100, naturalHeight: 300 }),
+  ];
+  // #when
+  const result = packMinis(entries, { ...heightOpts, marginMm: 2 });
+  // #then
+  const widths = result.pages[0].rows.flatMap((row) => row.items.map((mini) => mini.totalWidthMm));
+  assert.deepEqual(widths, [...widths].sort((a, b) => b - a));
+});
+
 console.log(`\n${passed} passed`);

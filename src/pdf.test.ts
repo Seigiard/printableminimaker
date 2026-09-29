@@ -169,4 +169,29 @@ await t('each copy prints its own number on both faces', async () => {
   ]);
 });
 
+await t('the height model prints one figure height for artworks of different proportions', async () => {
+  // #given  a square and a 1x100 sliver, both Tiny
+  const sliver: Entry = { ...entry, artwork: {
+    bytes: Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAABkCAYAAABHLFpgAAAAEklEQVR4nGP4z8Dwn2GUGEkEAJoCxzl9ksz2AAAAAElFTkSuQmCC', 'base64')),
+    format: 'png', width: 1, height: 100,
+  } };
+  // #when
+  const { images } = await inspect(await generatePDF([entry, sliver], {
+    pageSize: 'a4', numberDuplicates: false, marginMm: 0, sizingModel: 'height',
+  }));
+  // #then  Tiny is 24 mm tall in ADR-0002's table, front and back, for both entries
+  const mm = 72 / 25.4;
+  assert.deepEqual(images.map((box) => Math.round((box.top - box.bottom) / mm * 1e6) / 1e6), [24, 24, 24, 24]);
+});
+
+await t('naming the width model leaves the sheet as it is today', async () => {
+  // #given
+  const entries: Entry[] = [{ ...entry, size: 'gargantuan' }, entry];
+  const opts = { pageSize: 'a4', numberDuplicates: true, marginMm: 2 } as const;
+  // #when
+  const named = await inspect(await generatePDF(entries, { ...opts, sizingModel: 'width' }));
+  // #then
+  assert.deepEqual(named, await inspect(await generatePDF(entries, opts)));
+});
+
 console.log(`\n${passed} passed`);

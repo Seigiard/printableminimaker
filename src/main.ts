@@ -398,7 +398,7 @@ function render() {
 // Recomputes the live "N minis → M pages" readout, flags oversized rows, and
 // toggles the Generate button — all from the pure packing module.
 function updateCount() {
-  const result = packEntries(rows, { pageSize, numberDuplicates, marginMm });
+  const result = packEntries(rows, { pageSize, numberDuplicates, marginMm, sizingModel });
 
   const oversized = new Set(result.oversizedEntryIndices);
   rowEls.forEach((el, i) => {
@@ -566,7 +566,7 @@ generateBtn.addEventListener('click', async () => {
   generateBtn.disabled = true;
   generateBtn.textContent = 'Generating…';
   try {
-    const bytes = await generatePDF(rows, { pageSize, numberDuplicates, marginMm });
+    const bytes = await generatePDF(rows, { pageSize, numberDuplicates, marginMm, sizingModel });
     const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

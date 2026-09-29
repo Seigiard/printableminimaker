@@ -1,7 +1,10 @@
 import type { DnDPresetSize, DnDSize, Entry, SizingModel } from './types';
 
+export type SizeDimensionsMm = { baseWidthMm: number; figureHeightMm: number };
+export type FigureFitMm = { imageWidthMm: number; imageHeightMm: number };
+
 // ADR-0002: independently tuned dimensions for the height-driven model.
-export const SIZE_DIMENSIONS_MM: Record<DnDPresetSize, { baseWidthMm: number; figureHeightMm: number }> = {
+export const SIZE_DIMENSIONS_MM: Record<DnDPresetSize, SizeDimensionsMm> = {
   tiny: { baseWidthMm: 20, figureHeightMm: 24 },
   small: { baseWidthMm: 25, figureHeightMm: 25 },
   medium: { baseWidthMm: 25, figureHeightMm: 30 },
@@ -46,6 +49,20 @@ export function resolveBaseWidthMm(e: Pick<Entry, 'size' | 'customWidthMm'>, mod
   return model === 'height' ? SIZE_DIMENSIONS_MM[e.size].baseWidthMm : SIZE_WIDTH_MM[e.size];
 }
 
+// Resolves both columns for one entry under one model. Returns a zero in
+// either slot when the entry is not packable yet; callers check before fitting.
+export function resolveSizeDimensionsMm(
+  e: Pick<Entry, 'size' | 'customWidthMm' | 'customHeightMm'>,
+  model: SizingModel = 'width',
+): SizeDimensionsMm {
+  return {
+    baseWidthMm: resolveBaseWidthMm(e, model),
+    // The height column has no meaning under the width model, where the figure
+    // is scaled from the base width alone.
+    figureHeightMm: model === 'height' ? resolveFigureHeightMm(e) : 0,
+  };
+}
+
 function validDimension(value: number | undefined): number {
   return value != null && Number.isFinite(value) && value > 0 ? value : 0;
 }
@@ -58,15 +75,56 @@ function validDimension(value: number | undefined): number {
 // base always permits a taller figure.
 export const MAX_HEIGHT_RATIO = 1.5;
 
+// A figure is capped at this multiple of its base width. Under the
+// height-driven model the runaway axis is width, the mirror of what
+// MAX_HEIGHT_RATIO guards: without a cap, a figure spread out sideways would
+// swallow the sheet. Hitting the cap scales the whole figure down rather than
+// cropping it, so that mini prints a little short.
+export const MAX_WIDTH_RATIO = 2;
+
+// The one place the height-versus-width decision lives. Callers resolve both
+// dimensions and the model, and never branch on the model themselves.
+// Remove the model parameter with the losing branch in #19.
+export function fitFigure(
+  dimensions: SizeDimensionsMm,
+  imgWidthPx: number,
+  imgHeightPx: number,
+  model: SizingModel = 'width',
+): FigureFitMm {
+  return model === 'height'
+    ? fitFigureHeight(dimensions, imgWidthPx, imgHeightPx)
+    : fitImageBox(dimensions.baseWidthMm, imgWidthPx, imgHeightPx);
+}
+
+// Fits a figure to its category's height, letting width follow the artwork's
+// proportions, then scales the whole figure down if it passes the width cap.
+// Aspect ratio is preserved throughout and nothing is cropped.
+function fitFigureHeight(
+  { baseWidthMm, figureHeightMm }: SizeDimensionsMm,
+  imgWidthPx: number,
+  imgHeightPx: number,
+): FigureFitMm {
+  const maxWidthMm = baseWidthMm * MAX_WIDTH_RATIO;
+  const aspect = imgWidthPx / imgHeightPx;
+  let imageHeightMm = figureHeightMm;
+  let imageWidthMm = aspect * figureHeightMm;
+  if (imageWidthMm > maxWidthMm) {
+    imageWidthMm = maxWidthMm;
+    imageHeightMm = maxWidthMm / aspect;
+  }
+  return { imageWidthMm, imageHeightMm };
+}
+
 // Fits an image inside the per-size box (baseWidth × baseWidth*MAX_HEIGHT_RATIO),
 // preserving aspect ratio. Wide/short images fill the full base width. Tall
 // images are clamped to the max height and become narrower than the base (the
 // caller centers them horizontally over the footprint). No cropping.
+// Legacy width-driven model; #19 removes it with the switch.
 export function fitImageBox(
   baseWidthMm: number,
   imgWidthPx: number,
   imgHeightPx: number,
-): { imageWidthMm: number; imageHeightMm: number } {
+): FigureFitMm {
   const maxHeightMm = baseWidthMm * MAX_HEIGHT_RATIO;
   const aspect = imgHeightPx / imgWidthPx;
   let imageWidthMm = baseWidthMm;
