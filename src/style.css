@@ -82,13 +82,16 @@ button {
   font-family: inherit;
 }
 
-.settings select {
+.settings select,
+.settings input[type="number"] {
   padding: 0.45rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 0.95rem;
   background: white;
 }
+
+.settings input[type="number"] { width: 5rem; }
 
 /* --- Dropzone --- */
 

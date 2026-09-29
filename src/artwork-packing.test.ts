@@ -10,7 +10,8 @@ const t = (name: string, fn: () => void) => {
 };
 
 const square: PreparedArtwork = { bytes: new Uint8Array(), format: 'png', width: 100, height: 100 };
-const opts = { pageSize: 'a4', numberDuplicates: false } as const;
+// Preserve the pre-margin layout contract for prepared artwork.
+const opts = { pageSize: 'a4', numberDuplicates: false, marginMm: 0 } as const;
 const entry = (count: number, artwork: PreparedArtwork | null = square): Entry => ({
   image: null, artwork, size: 'medium', count,
 });

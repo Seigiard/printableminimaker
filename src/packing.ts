@@ -14,6 +14,7 @@ export type PageSizeKey = keyof typeof PAGE_SIZES_MM;
 export const MARGIN_MM = 10;
 export const GAP_MM = 2;
 export const TAB_HEIGHT_MM = 8;
+export const DEFAULT_FIGURE_MARGIN_MM = 2;
 
 // A single placed copy of an entry, with its resolved geometry. entryIndex maps
 // back to the source entry so callers (the PDF drawer, the warning UI) can
@@ -22,10 +23,12 @@ export type PackedMini = {
   entryIndex: number;
   copyIndex: number; // 0-based copy within the entry
   size: DnDSize;
-  baseWidthMm: number; // footprint width — outline, tabs, packing
+  baseWidthMm: number; // footprint width — determines figure scale
+  totalWidthMm: number; // base plus margins — outline, tabs, packing
+  marginMm: number;
   imageWidthMm: number; // drawn image width (<= baseWidthMm)
   imageHeightMm: number;
-  imageOffsetXMm: number; // horizontal offset to center the image over the base
+  imageOffsetXMm: number; // offset from the outline's left edge, including margin and centering
   totalHeightMm: number;
   label?: string;
 };
@@ -52,6 +55,7 @@ export type PackResult = {
 export type PackOptions = {
   pageSize: PageSizeKey;
   numberDuplicates: boolean;
+  marginMm?: number;
 };
 
 // Project prepared artwork into packing geometry without changing entry indices.
@@ -74,6 +78,7 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
   const { w: pageWmm, h: pageHmm } = PAGE_SIZES_MM[opts.pageSize];
   const usableWmm = pageWmm - MARGIN_MM * 2;
   const usableHmm = pageHmm - MARGIN_MM * 2;
+  const marginMm = opts.marginMm ?? DEFAULT_FIGURE_MARGIN_MM;
 
   const minis: PackedMini[] = [];
   entries.forEach((e, entryIndex) => {
@@ -89,14 +94,17 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
       return; // not packable yet
     }
     const { imageWidthMm, imageHeightMm } = fitImageBox(baseWidthMm, e.naturalWidth, e.naturalHeight);
-    const imageOffsetXMm = (baseWidthMm - imageWidthMm) / 2;
-    const totalHeightMm = imageHeightMm * 2 + TAB_HEIGHT_MM * 2;
+    const totalWidthMm = baseWidthMm + marginMm * 2;
+    const imageOffsetXMm = marginMm + (baseWidthMm - imageWidthMm) / 2;
+    const totalHeightMm = imageHeightMm * 2 + marginMm * 4 + TAB_HEIGHT_MM * 2;
     for (let i = 0; i < e.count; i++) {
       minis.push({
         entryIndex,
         copyIndex: i,
         size: e.size,
         baseWidthMm,
+        totalWidthMm,
+        marginMm,
         imageWidthMm,
         imageHeightMm,
         imageOffsetXMm,
@@ -133,7 +141,7 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
   };
 
   for (const mini of minis) {
-    if (mini.baseWidthMm > usableWmm || mini.totalHeightMm > usableHmm) {
+    if (mini.totalWidthMm > usableWmm || mini.totalHeightMm > usableHmm) {
       skipped.push({
         entryIndex: mini.entryIndex,
         copyIndex: mini.copyIndex,
@@ -144,12 +152,12 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
       continue;
     }
     const isFirst = row.items.length === 0;
-    const addedWidth = mini.baseWidthMm + (isFirst ? 0 : GAP_MM);
+    const addedWidth = mini.totalWidthMm + (isFirst ? 0 : GAP_MM);
     if (row.widthMm + addedWidth > usableWmm) {
       flushRow();
     }
     const firstNow = row.items.length === 0;
-    row.widthMm += mini.baseWidthMm + (firstNow ? 0 : GAP_MM);
+    row.widthMm += mini.totalWidthMm + (firstNow ? 0 : GAP_MM);
     row.items.push(mini);
     if (mini.totalHeightMm > row.heightMm) row.heightMm = mini.totalHeightMm;
     placed++;

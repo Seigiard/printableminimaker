@@ -17,6 +17,7 @@ import {
   PAGE_SIZES_MM,
   TAB_HEIGHT_MM,
   packEntries,
+  type PackOptions,
   type PackedMini,
   type PageSizeKey,
 } from './packing';
@@ -31,10 +32,7 @@ const LIGHT_GREY = rgb(0.7, 0.7, 0.7);
 const DASH_ON_MM = 1;
 const DASH_OFF_MM = 1;
 
-export type GenerateOptions = {
-  pageSize: PageSizeKey;
-  numberDuplicates: boolean;
-};
+export type GenerateOptions = PackOptions;
 
 export async function generatePDF(
   entries: Entry[],
@@ -78,7 +76,7 @@ export async function generatePDF(
       let xMm = MARGIN_MM;
       for (const mini of row.items) {
         drawMini(pdfPage, mini, images[mini.entryIndex], xMm, yTopMm, font);
-        xMm += mini.baseWidthMm + GAP_MM;
+        xMm += mini.totalWidthMm + GAP_MM;
       }
       yTopMm -= row.heightMm + GAP_MM;
     }
@@ -98,20 +96,17 @@ function drawMini(
   const yBottomMm = yTopMm - mini.totalHeightMm;
   const x = mm(xMm);
   const yBottom = mm(yBottomMm);
-  const w = mm(mini.baseWidthMm);
+  const w = mm(mini.totalWidthMm);
   const iw = mm(mini.imageWidthMm);
   const offX = mm(mini.imageOffsetXMm);
   const totalH = mm(mini.totalHeightMm);
   const tab = mm(TAB_HEIGHT_MM);
   const imgH = mm(mini.imageHeightMm);
+  const margin = mm(mini.marginMm);
   const stroke = mm(STROKE_MM);
 
-  // Bottom-up layout in PDF coords:
-  //   [0, tab)             front-side tab
-  //   [tab, tab+imgH)      front image (right-side-up)
-  //   tab+imgH             fold line (centre)
-  //   [tab+imgH, tab+2H)   back image (rotated 180°)
-  //   [tab+2H, tab*2+2H)   back-side tab
+  // Bottom-up: tab, margin, front image, margin, fold,
+  // margin, rotated back image, margin, tab.
 
   // Cut outline
   pdfPage.drawRectangle({
@@ -126,7 +121,7 @@ function drawMini(
   // Front image — centered horizontally over the base footprint.
   pdfPage.drawImage(pdfImage, {
     x: x + offX,
-    y: yBottom + tab,
+    y: yBottom + tab + margin,
     width: iw,
     height: imgH,
   });
@@ -140,17 +135,15 @@ function drawMini(
       mini.imageWidthMm,
       mini.imageHeightMm,
       x + offX,
-      yBottom + tab,
+      yBottom + tab + margin,
     );
   }
 
   // Back image — rotated 180° (= mirror horizontal + flip vertical), centered.
   // CTM [-1 0 0 -1 e f] maps (px,py) → (e-px, f-py).
   // For an image drawn at (0,0) sized iw×imgH, the four corners map to a
-  // rectangle from (e-iw, f-imgH) to (e, f). We want that to be the slot
-  // [(x+offX, yBottom+tab+imgH), (x+offX+iw, yBottom+tab+2*imgH)], so
-  // e=x+offX+iw, f=yBottom+tab+2*imgH.
-  const backTop = yBottom + tab + imgH * 2;
+  // rectangle from (e-iw, f-imgH) to (e, f), one margin below the top tab.
+  const backTop = yBottom + tab + imgH * 2 + margin * 3;
   pdfPage.pushOperators(pushGraphicsState());
   pdfPage.pushOperators(
     concatTransformationMatrix(-1, 0, 0, -1, x + offX + iw, backTop),
@@ -164,7 +157,7 @@ function drawMini(
   pdfPage.pushOperators(popGraphicsState());
 
   // Fold line — dotted, at the unfolded mini's vertical centre.
-  const foldY = yBottom + tab + imgH;
+  const foldY = yBottom + tab + imgH + margin * 2;
   pdfPage.drawLine({
     start: { x, y: foldY },
     end: { x: x + w, y: foldY },
