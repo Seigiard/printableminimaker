@@ -10,7 +10,7 @@ import {
   concatTransformationMatrix,
 } from 'pdf-lib';
 import type { PreparedArtwork, Entry } from './types';
-import { resolveBaseWidthMm } from './sizes';
+import { resolveBaseWidthMm } from './sizes.ts';
 import {
   GAP_MM,
   MARGIN_MM,
@@ -20,7 +20,7 @@ import {
   type PackOptions,
   type PackedMini,
   type PageSizeKey,
-} from './packing';
+} from './packing.ts';
 
 export type { PageSizeKey };
 
@@ -128,15 +128,14 @@ function drawMini(
     height: imgH,
   });
 
-  // Front label — top-right of front image
+  // Front label — below the image, extending into the tab if the margin is narrow.
   if (mini.label) {
     drawLabelBadge(
       pdfPage,
       mini.label,
       font,
-      mini.imageWidthMm,
-      mini.imageHeightMm,
-      x + offX,
+      mini.baseWidthMm,
+      x + margin,
       yBottom + tab + margin,
     );
   }
@@ -152,9 +151,10 @@ function drawMini(
   );
   pdfPage.drawImage(pdfImage, { x: 0, y: 0, width: iw, height: imgH });
   // Back label — same local coords as front so it lands on the visual
-  // top-right of the back face after folding + walking around.
+  // bottom-right of the back face after folding + walking around.
   if (mini.label) {
-    drawLabelBadge(pdfPage, mini.label, font, mini.imageWidthMm, mini.imageHeightMm, 0, 0);
+    const baseOffsetX = mm((mini.imageWidthMm - mini.baseWidthMm) / 2);
+    drawLabelBadge(pdfPage, mini.label, font, mini.baseWidthMm, baseOffsetX, 0);
   }
   pdfPage.pushOperators(popGraphicsState());
 
@@ -169,14 +169,14 @@ function drawMini(
   });
 }
 
-// Draws a small white badge with a number at the top-right of an
-// image-sized box anchored at (boxX, boxY) (bottom-left), in pt.
+// Draws a white number badge below the base's right edge. boxX is the base's
+// left edge and boxY is the image's bottom, in pt and face-local coordinates.
+// The tab provides room when the figure margin is small.
 function drawLabelBadge(
   pdfPage: PDFPage,
   label: string,
   font: PDFFont,
   widthMm: number,
-  imageHeightMm: number,
   boxX: number,
   boxY: number,
 ) {
@@ -189,7 +189,7 @@ function drawLabelBadge(
   const bh = mm(badgeHmm);
   const pad = mm(padMm);
   const bx = boxX + mm(widthMm) - bw - pad;
-  const by = boxY + mm(imageHeightMm) - bh - pad;
+  const by = boxY - bh - pad;
 
   pdfPage.drawRectangle({
     x: bx,
