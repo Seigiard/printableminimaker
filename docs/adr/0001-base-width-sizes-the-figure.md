@@ -1,6 +1,6 @@
 # Base width sizes the figure, not the artwork
 
-_Superseded by [ADR-0002](./0002-figure-height-sizes-the-mini.md): the size category now fixes figure height, and width follows the artwork._
+_Superseded by [ADR-0002](./0002-figure-height-sizes-the-mini.md): the user picks a figure height, width follows the artwork, and the size category follows from the height._
 
 A size category's base width used to scale the whole uploaded image, so however much empty space the artwork happened to carry around its creature ate into the mini. Two Medium minis printed at different apparent sizes purely because one artist framed tighter than the other. Normalization trims artwork to the figure's bounding box, and from then on the base width scales the **figure**: a Medium figure is 25 mm wide whatever its source framing.
 

@@ -1,4 +1,4 @@
-import type { DnDSize, Entry, PackingEntry } from './types';
+import type { Entry, MiniSize, PackingEntry } from './types';
 import { fitFigure, hasPackableDimensions, resolveSizeDimensionsMm } from './sizes.ts';
 
 // Page and layout constants. These live here (not in pdf.ts) so the packing
@@ -13,8 +13,36 @@ export type PageSizeKey = keyof typeof PAGE_SIZES_MM;
 
 export const MARGIN_MM = 10;
 export const GAP_MM = 2;
-export const TAB_HEIGHT_MM = 8;
 export const DEFAULT_FIGURE_MARGIN_MM = 2;
+
+// The tab a figure gets once it is tall enough to carry one, and the floor
+// below which the fold has nothing to grip.
+export const TAB_HEIGHT_MM = 8;
+export const MIN_TAB_HEIGHT_MM = 4;
+
+// ADR-0002, the tab floor: a tab is this share of the figure standing on it,
+// until MIN_TAB_HEIGHT_MM takes over. Below a 10 mm printed figure the floor
+// wins and the proportion no longer holds — a wide Tiny scaled down by the width
+// cap can end up shorter than its own 4 mm tab. The grip the fold needs is a
+// fixed physical thing, so it does not scale away; the six-row table had the
+// same corner, more often, with a fixed 8 mm tab. The height slots are graded true to scale at the small end —
+// a Tiny is 11 mm — and a fixed 8 mm tab under an 11 mm figure is the "strip of
+// paper with a dot on top" #20's story 10 was written against. Shrinking the
+// tab under a short figure keeps the figure scale honest instead of inflating
+// Tiny and Small back over true scale, which would re-compress the very
+// halfling-versus-dwarf gap #24 opened.
+export const MAX_TAB_HEIGHT_RATIO = 0.4;
+
+// Measured from the figure's printed height, not its slot's nominal one, so a
+// figure scaled down by the width cap gets the tab it actually stands on. Any
+// figure printing 20 mm or taller keeps the full tab, which at nominal height is
+// every slot from the short Medium up — but wide artwork can drop one of those
+// below 20 mm, and then it shrinks like any other short figure.
+export function tabHeightMm(figureHeightMm: number): number {
+  const proportional = figureHeightMm * MAX_TAB_HEIGHT_RATIO;
+  if (proportional >= TAB_HEIGHT_MM) return TAB_HEIGHT_MM;
+  return Math.max(proportional, MIN_TAB_HEIGHT_MM);
+}
 
 // A single placed copy of an entry, with its resolved geometry. entryIndex maps
 // back to the source entry so callers (the PDF drawer, the warning UI) can
@@ -22,14 +50,15 @@ export const DEFAULT_FIGURE_MARGIN_MM = 2;
 export type PackedMini = {
   entryIndex: number;
   copyIndex: number; // 0-based copy within the entry
-  size: DnDSize;
-  baseWidthMm: number; // tab footprint, fixed by the size category
+  heightSlot: MiniSize;
+  baseWidthMm: number; // tab footprint, fixed by the slot's size category
   totalWidthMm: number; // the wider of figure and base, plus margins — reserved column, fold line, packing
   tabWidthMm: number; // drawn tab outline, centred in the reserved column
   tabOffsetXMm: number; // offset from the reserved column's left edge
   baseOffsetXMm: number; // ditto, for the base the figure and badge sit over
+  tabHeightMm: number; // drawn tab height, shrunk under a figure too short for a full one
   marginMm: number;
-  imageWidthMm: number; // drawn image width; may exceed baseWidthMm under the height model
+  imageWidthMm: number; // drawn image width; may exceed baseWidthMm
   imageHeightMm: number;
   imageOffsetXMm: number; // offset from the outline's left edge, including margin and centering
   totalHeightMm: number;
@@ -64,7 +93,7 @@ export type PackOptions = {
 // Project prepared artwork into packing geometry without changing entry indices.
 export function packEntries(entries: Entry[], opts: PackOptions): PackResult {
   return packMinis(entries.map((entry) => ({
-    size: entry.size,
+    heightSlot: entry.heightSlot,
     customWidthMm: entry.customWidthMm,
     customHeightMm: entry.customHeightMm,
     count: entry.count,
@@ -116,17 +145,19 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
     // rule — change it here and change it there.
     const tabOffsetXMm = (totalWidthMm - tabWidthMm) / 2;
     const baseOffsetXMm = marginMm + (contentWidthMm - baseWidthMm) / 2;
-    const totalHeightMm = imageHeightMm * 2 + marginMm * 4 + TAB_HEIGHT_MM * 2;
+    const tabHMm = tabHeightMm(imageHeightMm);
+    const totalHeightMm = imageHeightMm * 2 + marginMm * 4 + tabHMm * 2;
     for (let i = 0; i < e.count; i++) {
       minis.push({
         entryIndex,
         copyIndex: i,
-        size: e.size,
+        heightSlot: e.heightSlot,
         baseWidthMm,
         totalWidthMm,
         tabWidthMm,
         tabOffsetXMm,
         baseOffsetXMm,
+        tabHeightMm: tabHMm,
         marginMm,
         imageWidthMm,
         imageHeightMm,

@@ -15,7 +15,6 @@ import {
   GAP_MM,
   MARGIN_MM,
   PAGE_SIZES_MM,
-  TAB_HEIGHT_MM,
   packEntries,
   type PackOptions,
   type PackedMini,
@@ -105,7 +104,7 @@ function drawMini(
   const tabW = mm(mini.tabWidthMm);
   const offX = mm(mini.imageOffsetXMm);
   const totalH = mm(mini.totalHeightMm);
-  const tab = mm(TAB_HEIGHT_MM);
+  const tab = mm(mini.tabHeightMm);
   const imgH = mm(mini.imageHeightMm);
   const margin = mm(mini.marginMm);
   const stroke = mm(STROKE_MM);
@@ -136,13 +135,17 @@ function drawMini(
     height: imgH,
   });
 
-  // Front label — below the image, extending into the tab if the margin is narrow.
+  // Front label — below the image, extending into the tab if the margin is
+  // narrow. The tab shrinks under a short figure, so the badge is told how much
+  // room it has rather than assuming a full one.
+  const labelRoomMm = mini.marginMm + mini.tabHeightMm;
   if (mini.label) {
     drawLabelBadge(
       pdfPage,
       mini.label,
       font,
       mini.baseWidthMm,
+      labelRoomMm,
       baseX,
       yBottom + tab + margin,
     );
@@ -164,7 +167,7 @@ function drawMini(
     // The same centring as `baseOffsetXMm`, but measured from the image's own
     // origin, which is where the flipped frame puts zero.
     const baseFromImageX = mm((mini.imageWidthMm - mini.baseWidthMm) / 2);
-    drawLabelBadge(pdfPage, mini.label, font, mini.baseWidthMm, baseFromImageX, 0);
+    drawLabelBadge(pdfPage, mini.label, font, mini.baseWidthMm, labelRoomMm, baseFromImageX, 0);
   }
   pdfPage.pushOperators(popGraphicsState());
 
@@ -183,18 +186,24 @@ function drawMini(
 
 // Draws a white number badge below the base's right edge. boxX is the base's
 // left edge and boxY is the image's bottom, in pt and face-local coordinates.
-// The tab provides room when the figure margin is small.
+// `roomMm` is the paper below the image — the figure margin plus the tab — and
+// the badge shrinks to stay inside it, clear of the cut edge at both ends.
+// Without that a Tiny at zero margin would hang its badge off the mini. The
+// clearance yields with the room for the same reason: held at a flat 0.8 mm it
+// eats a fifth of a shrunken tab, and the digit inside drops below the 6 pt
+// this file's tests treat as the floor for a readable number.
 function drawLabelBadge(
   pdfPage: PDFPage,
   label: string,
   font: PDFFont,
   widthMm: number,
+  roomMm: number,
   boxX: number,
   boxY: number,
 ) {
   const badgeWmm = clamp(widthMm * 0.22, 4, 7);
-  const badgeHmm = badgeWmm * 0.85;
-  const padMm = Math.min(0.8, widthMm * 0.04);
+  const padMm = Math.min(0.8, widthMm * 0.04, roomMm * 0.1);
+  const badgeHmm = Math.min(badgeWmm * 0.85, roomMm - padMm * 2);
   const fontSize = mm(badgeHmm * 0.65);
 
   const bw = mm(badgeWmm);

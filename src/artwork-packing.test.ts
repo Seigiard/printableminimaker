@@ -13,7 +13,7 @@ const square: PreparedArtwork = { bytes: new Uint8Array(), format: 'png', width:
 // Preserve the pre-margin layout contract for prepared artwork.
 const opts = { pageSize: 'a4', numberDuplicates: false, marginMm: 0 } as const;
 const entry = (count: number, artwork: PreparedArtwork | null = square): Entry => ({
-  image: null, artwork, size: 'medium', count,
+  image: null, artwork, heightSlot: 'medium', count,
 });
 
 t('18 prepared medium squares fit one A4 sheet', () => {
@@ -56,7 +56,7 @@ t('packEntries uses the current artwork height', () => {
 
 t('unprepared entries preserve the source indices of packed and oversized entries', () => {
   // #given
-  const entries = [entry(1, null), entry(1), { ...entry(1), size: 'custom' as const, customWidthMm: 200, customHeightMm: 30 }];
+  const entries = [entry(1, null), entry(1), { ...entry(1), heightSlot: 'custom' as const, customWidthMm: 200, customHeightMm: 30 }];
   // #when
   const result = packEntries(entries, opts);
   // #then
@@ -75,7 +75,7 @@ t('prepared artwork proportions reach fitting through packEntries', () => {
 
 t('a custom entry carries both of its dimensions into the fit', () => {
   // #given
-  const e: Entry = { ...entry(1), size: 'custom', customWidthMm: 30, customHeightMm: 45 };
+  const e: Entry = { ...entry(1), heightSlot: 'custom', customWidthMm: 30, customHeightMm: 45 };
   // #when
   const mini = packEntries([e], opts).pages[0].rows[0].items[0];
   // #then
