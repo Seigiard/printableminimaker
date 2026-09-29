@@ -5,10 +5,10 @@
   "description": "In-browser PDF generator for foldable D&D paper miniatures.",
   "license": "MIT",
   "author": "Garrit Franke",
-  "homepage": "https://garritfra.github.io/printableminimaker/",
+  "homepage": "https://seigiard.com/printableminimaker/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/garritfra/printableminimaker.git"
+    "url": "git+https://github.com/Seigiard/printableminimaker.git"
   },
   "type": "module",
   "scripts": {

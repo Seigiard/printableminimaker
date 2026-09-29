@@ -2,7 +2,7 @@
 
 In-browser tool that turns uploaded artwork into print-ready PDFs of foldable D&D paper miniatures.
 
-**Live: https://garritfra.github.io/printableminimaker/**
+**Live: https://seigiard.com/printableminimaker/**
 
 ## What it does
 
