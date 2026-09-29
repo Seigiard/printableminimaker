@@ -1,6 +1,6 @@
 // One-off test (no framework in this project). Run with: node src/sizes.test.ts
 import assert from 'node:assert/strict';
-import { fitImageBox, MAX_HEIGHT_RATIO, SIZE_WIDTH_MM } from './sizes.ts';
+import { fitImageBox, MAX_HEIGHT_RATIO, SIZE_WIDTH_MM, resolveBaseWidthMm, resolveFigureHeightMm } from './sizes.ts';
 
 let passed = 0;
 const t = (name: string, fn: () => void) => {
@@ -45,5 +45,45 @@ t('large is never shorter than small for identical tall art', () => {
     `large (${large.imageHeightMm}) should be >= small (${small.imageHeightMm})`,
   );
 });
+
+t('height model selects the tuned base width without changing the default', () => {
+  // #given
+  const entry = { size: 'large' as const };
+  // #when
+  const widths = [resolveBaseWidthMm(entry), resolveBaseWidthMm(entry, 'height')];
+  // #then
+  assert.deepEqual(widths, [50, 37]);
+});
+
+t('custom dimensions stay independent in either model', () => {
+  // #given
+  const entry = { size: 'custom' as const, customWidthMm: 32, customHeightMm: 47 };
+  // #when
+  const dimensions = [resolveBaseWidthMm(entry), resolveBaseWidthMm(entry, 'height'), resolveFigureHeightMm(entry)];
+  // #then
+  assert.deepEqual(dimensions, [32, 32, 47]);
+});
+
+t('preset dimensions match the six tuned pairs in ADR-0002', () => {
+  // #given
+  const sizes = ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'] as const;
+  // #when
+  const dimensions = sizes.map((size) => [
+    resolveBaseWidthMm({ size }, 'height'), resolveFigureHeightMm({ size }),
+  ]);
+  // #then
+  assert.deepEqual(dimensions, [[20, 24], [25, 25], [25, 30], [37, 44], [50, 60], [75, 90]]);
+});
+
+for (const value of [undefined, 0, -1, NaN, Infinity]) {
+  t(`invalid custom dimensions (${value}) are not packable`, () => {
+    // #given
+    const entry = { size: 'custom' as const, customWidthMm: value, customHeightMm: value };
+    // #when
+    const dimensions = [resolveBaseWidthMm(entry), resolveBaseWidthMm(entry, 'height'), resolveFigureHeightMm(entry)];
+    // #then
+    assert.deepEqual(dimensions, [0, 0, 0]);
+  });
+}
 
 console.log(`\n${passed} passed`);

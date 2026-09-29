@@ -46,7 +46,7 @@ Each `PackedMini` carries two widths and they are not interchangeable. `baseWidt
 
 `SPEC.md` is the v1 spec, and the code has outgrown it — trimming shipped, for one. Read it for the exclusions it argues and the code still honours: URL paste (image hosts send no permissive CORS headers, so a fetch→canvas→PDF path fails wherever the site is hosted), knockout, separate front/back artwork.
 
-Artwork stays in memory only. `localStorage` under `pmg-settings` holds page size, figure margin, the numbering toggle and the normalization toggle.
+Artwork stays in memory only. `localStorage` under `pmg-settings` holds page size, figure margin, the numbering toggle, the normalization toggle and `sizingModel`. The model selection is a temporary preview setting; #17 connects it to scaling and #19 removes the losing model and switch.
 
 GitHub Pages deploys from the Actions workflow on push to `main`. `vite.config.ts` sets `base: './'`, which also lets the built bundle run from `file://`.
 

@@ -2,8 +2,8 @@ import { generatePDF, buildFilename } from './pdf';
 import { DEFAULT_FIGURE_MARGIN_MM, packEntries, type PageSizeKey } from './packing';
 import { prepareArtwork } from './artwork';
 import { normalizeArtwork } from './normalization';
-import { DEFAULT_CUSTOM_WIDTH_MM, SIZE_LABELS, SIZE_WIDTH_MM } from './sizes';
-import type { PreparedArtwork, DnDPresetSize, DnDSize, Entry } from './types';
+import { DEFAULT_CUSTOM_WIDTH_MM, DEFAULT_CUSTOM_HEIGHT_MM, SIZE_DIMENSIONS_MM, SIZE_LABELS, SIZE_WIDTH_MM } from './sizes';
+import type { PreparedArtwork, DnDPresetSize, DnDSize, Entry, SizingModel } from './types';
 
 const rows: Entry[] = [];
 let generating = false;
@@ -14,6 +14,7 @@ const pageSizeSel = document.getElementById('page-size') as HTMLSelectElement;
 const figureMarginEl = document.getElementById('figure-margin') as HTMLInputElement;
 const numberDuplicatesEl = document.getElementById('number-duplicates') as HTMLInputElement;
 const normalizeArtworkEl = document.getElementById('normalize-artwork') as HTMLInputElement;
+const sizingModelSel = document.getElementById('sizing-model') as HTMLSelectElement;
 const dropzone = document.getElementById('dropzone') as HTMLElement;
 const fileInput = document.getElementById('file-input') as HTMLInputElement;
 const rowsToolbar = document.getElementById('rows-toolbar') as HTMLElement;
@@ -34,13 +35,19 @@ let pageSize: PageSizeKey = pageSizeSel.value as PageSizeKey;
 let numberDuplicates = numberDuplicatesEl.checked;
 let normalization = normalizeArtworkEl.checked;
 let marginMm = DEFAULT_FIGURE_MARGIN_MM;
+// Temporary comparison setting; #17 connects it to scaling, #19 removes the loser.
+let sizingModel: SizingModel = 'width';
 figureMarginEl.value = String(marginMm);
 
 function loadSettings() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return;
-    const s = JSON.parse(raw) as { pageSize?: string; numberDuplicates?: boolean; normalization?: boolean; marginMm?: number };
+    const s = JSON.parse(raw) as { pageSize?: string; numberDuplicates?: boolean; normalization?: boolean; marginMm?: number; sizingModel?: string };
+    if (s.sizingModel === 'width' || s.sizingModel === 'height') {
+      sizingModel = s.sizingModel;
+      sizingModelSel.value = sizingModel;
+    }
     if (s.pageSize === 'a4' || s.pageSize === 'letter') {
       pageSize = s.pageSize;
       pageSizeSel.value = s.pageSize;
@@ -64,7 +71,7 @@ function loadSettings() {
 
 function saveSettings() {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify({ pageSize, numberDuplicates, normalization, marginMm }));
+    localStorage.setItem(LS_KEY, JSON.stringify({ pageSize, numberDuplicates, normalization, marginMm, sizingModel }));
   } catch {
     // Storage may be disabled (private mode); persistence is best-effort.
   }
@@ -223,7 +230,7 @@ function buildRow(entry: Entry, index: number): HTMLElement {
   fileWrap.appendChild(name);
   el.appendChild(fileWrap);
 
-  // Size column — dropdown + optional custom-width field with a mm affix.
+  // Size column — dropdown and independent custom dimensions.
   const sizeWrap = document.createElement('div');
   sizeWrap.className = 'field size-wrap';
   sizeWrap.append(fieldLabel('Size'));
@@ -232,7 +239,7 @@ function buildRow(entry: Entry, index: number): HTMLElement {
   for (const [val, label] of Object.entries(SIZE_LABELS)) {
     const opt = document.createElement('option');
     opt.value = val;
-    opt.textContent = label;
+    opt.textContent = sizeLabel(val as DnDSize, label);
     if (val === entry.size) opt.selected = true;
     sizeSel.appendChild(opt);
   }
@@ -259,6 +266,23 @@ function buildRow(entry: Entry, index: number): HTMLElement {
   customWrap.append(customInput, unit);
   sizeWrap.appendChild(customWrap);
 
+  const heightWrap = document.createElement('label');
+  heightWrap.className = 'custom-height';
+  heightWrap.textContent = 'Figure height (mm)';
+  heightWrap.hidden = entry.size !== 'custom' || sizingModel !== 'height';
+  const heightInput = document.createElement('input');
+  heightInput.type = 'number';
+  heightInput.min = '1';
+  heightInput.step = '0.5';
+  heightInput.value = String(entry.customHeightMm ?? '');
+  heightInput.addEventListener('input', () => {
+    const n = heightInput.valueAsNumber;
+    entry.customHeightMm = Number.isFinite(n) && n > 0 ? n : undefined;
+    updateCount();
+  });
+  heightWrap.appendChild(heightInput);
+  sizeWrap.appendChild(heightWrap);
+
   sizeSel.addEventListener('change', () => {
     entry.size = sizeSel.value as DnDSize;
     if (entry.size === 'custom') {
@@ -267,9 +291,14 @@ function buildRow(entry: Entry, index: number): HTMLElement {
         customInput.value = String(DEFAULT_CUSTOM_WIDTH_MM);
       }
       customWrap.style.display = '';
+      if (entry.customHeightMm == null || entry.customHeightMm <= 0) {
+        entry.customHeightMm = DEFAULT_CUSTOM_HEIGHT_MM;
+        heightInput.value = String(DEFAULT_CUSTOM_HEIGHT_MM);
+      }
     } else {
       customWrap.style.display = 'none';
     }
+    heightWrap.hidden = entry.size !== 'custom' || sizingModel !== 'height';
     updateCount();
   });
   el.appendChild(sizeWrap);
@@ -412,6 +441,13 @@ function updateCount() {
 
 // --- Settings wiring ---
 
+sizingModelSel.addEventListener('change', () => {
+  sizingModel = sizingModelSel.value as SizingModel;
+  saveSettings();
+  renderBulkSizes();
+  render();
+});
+
 figureMarginEl.addEventListener('input', () => {
   if (figureMarginEl.validity.valid) {
     marginMm = figureMarginEl.valueAsNumber;
@@ -465,12 +501,21 @@ addBlankBtn.addEventListener('click', () => {
 
 // --- Bulk "set all to size" ---
 
-for (const [val, label] of Object.entries(SIZE_LABELS)) {
-  if (val === 'custom') continue; // custom needs a per-row width
-  const opt = document.createElement('option');
-  opt.value = val;
-  opt.textContent = label;
-  bulkSizeSel.appendChild(opt);
+function sizeLabel(size: DnDSize, legacyLabel: string): string {
+  if (sizingModel === 'width' || size === 'custom') return legacyLabel;
+  const { baseWidthMm, figureHeightMm } = SIZE_DIMENSIONS_MM[size];
+  return `${size[0].toUpperCase()}${size.slice(1)} (${baseWidthMm} mm base / ${figureHeightMm} mm tall)`;
+}
+
+function renderBulkSizes() {
+  while (bulkSizeSel.options.length > 1) bulkSizeSel.remove(1);
+  for (const [val, label] of Object.entries(SIZE_LABELS)) {
+    if (val === 'custom') continue; // custom needs per-row dimensions
+    const opt = document.createElement('option');
+    opt.value = val;
+    opt.textContent = sizeLabel(val as DnDPresetSize, label);
+    bulkSizeSel.appendChild(opt);
+  }
 }
 bulkSizeSel.addEventListener('change', () => {
   const size = bulkSizeSel.value as DnDPresetSize;
@@ -546,4 +591,5 @@ generateBtn.addEventListener('click', async () => {
 });
 
 loadSettings();
+renderBulkSizes();
 render();

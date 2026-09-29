@@ -265,6 +265,17 @@ button {
 .row .field-label { display: none; } /* header covers labels on desktop */
 
 .row .size-wrap select { flex: 1; min-width: 0; }
+.row .size-wrap:has(.custom-height:not([hidden])) { flex-wrap: wrap; }
+.row .custom-height {
+  flex: 0 0 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+}
+.row .custom-height[hidden] { display: none; }
+.row .custom-height input { width: 86px; }
 .row .custom-width-wrap {
   position: relative;
   display: inline-flex;
