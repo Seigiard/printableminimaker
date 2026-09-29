@@ -26,10 +26,10 @@ Replacing background pixels with transparency, leaving the figure as a silhouett
 _Avoid_: Background removal, masking
 
 **Normalization**:
-Trimming artwork and then re-adding a uniform margin, so every mini on a sheet carries the same amount of empty space around its figure regardless of how the artwork was framed.
+Trimming artwork to its figure so the original framing does not affect the printed scale. The figure margin is a separate setting.
 
-**Margin**:
-The empty space deliberately re-added around a figure after a trim, measured in millimetres and identical for every mini on a sheet.
+**Margin** (figure margin):
+The paper added around each face outside its base width, measured in millimetres and identical for every mini on a sheet. It applies whether normalization is on or off.
 _Avoid_: Padding, whitespace, bleed
 
 ### The printed mini
@@ -39,7 +39,7 @@ One printed, foldable miniature: a figure over its base, front and back, with th
 _Avoid_: Miniature, model, token
 
 **Base width**:
-The width of a mini's grid footprint on the table, fixed by its size category or given directly for a custom size. It is the unit the packer reserves, not the width of the figure.
+The width of a mini's grid footprint on the table, fixed by its size category or given directly for a custom size. It determines the figure's scale. The margin adds paper outside this width.
 _Avoid_: Size, width
 
 **Size category**:

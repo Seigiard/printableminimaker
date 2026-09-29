@@ -4,7 +4,7 @@ A size category's base width used to scale the whole uploaded image, so however 
 
 ## Considered options
 
-The uniform margin re-added after a trim has to come from somewhere, and that decides what the packer reserves.
+The uniform figure margin has to come from somewhere, and that decides what the packer reserves.
 
 **Margin inside the base**, so a mini's total width stays equal to its base width. Keeps the reserved width and the grid footprint identical, which is the simpler model. Rejected because the figure then gets `base − 2 × margin`: at the default 2 mm margin a Tiny mini's 12.5 mm base leaves the creature 8.5 mm, shrinking the smallest minis by a third.
 

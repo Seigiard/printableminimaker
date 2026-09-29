@@ -9,6 +9,7 @@ In-browser tool that turns uploaded artwork into print-ready PDFs of foldable D&
 - Upload artwork (PNG, JPG, or WebP), pick a D&D size category, set a count.
 - Add as many entries as you like.
 - Transparent margins are trimmed to the figure. Turn off **Normalize artwork** to print the original artwork; this setting is saved. Solid backgrounds stay unchanged, with a warning when no figure bounds are found.
+- **Figure margin** adds paper around each face without shrinking the figure. It defaults to 2 mm and is saved across reloads. It also applies when normalization is off; set it to 0 for no added margin. The gap between minis stays at 2 mm.
 - Generate a multi-page A4 or Letter PDF, packed greedily by size.
 - Each mini renders as a fold-over rectangle: front image, dotted fold line, back image (rotated 180°), and matching tabs that double up under the base when folded.
 

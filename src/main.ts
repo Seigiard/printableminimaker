@@ -1,5 +1,5 @@
 import { generatePDF, buildFilename } from './pdf';
-import { packEntries, type PageSizeKey } from './packing';
+import { DEFAULT_FIGURE_MARGIN_MM, packEntries, type PageSizeKey } from './packing';
 import { prepareArtwork } from './artwork';
 import { normalizeArtwork } from './normalization';
 import { DEFAULT_CUSTOM_WIDTH_MM, SIZE_LABELS, SIZE_WIDTH_MM } from './sizes';
@@ -11,6 +11,7 @@ let generating = false;
 const rowsEl = document.getElementById('rows') as HTMLElement;
 const generateBtn = document.getElementById('generate') as HTMLButtonElement;
 const pageSizeSel = document.getElementById('page-size') as HTMLSelectElement;
+const figureMarginEl = document.getElementById('figure-margin') as HTMLInputElement;
 const numberDuplicatesEl = document.getElementById('number-duplicates') as HTMLInputElement;
 const normalizeArtworkEl = document.getElementById('normalize-artwork') as HTMLInputElement;
 const dropzone = document.getElementById('dropzone') as HTMLElement;
@@ -32,12 +33,14 @@ const LS_KEY = 'pmg-settings';
 let pageSize: PageSizeKey = pageSizeSel.value as PageSizeKey;
 let numberDuplicates = numberDuplicatesEl.checked;
 let normalization = normalizeArtworkEl.checked;
+let marginMm = DEFAULT_FIGURE_MARGIN_MM;
+figureMarginEl.value = String(marginMm);
 
 function loadSettings() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return;
-    const s = JSON.parse(raw) as { pageSize?: string; numberDuplicates?: boolean; normalization?: boolean };
+    const s = JSON.parse(raw) as { pageSize?: string; numberDuplicates?: boolean; normalization?: boolean; marginMm?: number };
     if (s.pageSize === 'a4' || s.pageSize === 'letter') {
       pageSize = s.pageSize;
       pageSizeSel.value = s.pageSize;
@@ -50,6 +53,10 @@ function loadSettings() {
       normalization = s.normalization;
       normalizeArtworkEl.checked = s.normalization;
     }
+    if (typeof s.marginMm === 'number' && Number.isFinite(s.marginMm) && s.marginMm >= 0) {
+      marginMm = s.marginMm;
+      figureMarginEl.value = String(marginMm);
+    }
   } catch {
     // Ignore malformed/unavailable storage — fall back to defaults.
   }
@@ -57,7 +64,7 @@ function loadSettings() {
 
 function saveSettings() {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify({ pageSize, numberDuplicates, normalization }));
+    localStorage.setItem(LS_KEY, JSON.stringify({ pageSize, numberDuplicates, normalization, marginMm }));
   } catch {
     // Storage may be disabled (private mode); persistence is best-effort.
   }
@@ -362,7 +369,7 @@ function render() {
 // Recomputes the live "N minis → M pages" readout, flags oversized rows, and
 // toggles the Generate button — all from the pure packing module.
 function updateCount() {
-  const result = packEntries(rows, { pageSize, numberDuplicates });
+  const result = packEntries(rows, { pageSize, numberDuplicates, marginMm });
 
   const oversized = new Set(result.oversizedEntryIndices);
   rowEls.forEach((el, i) => {
@@ -371,7 +378,7 @@ function updateCount() {
     el.classList.toggle('oversized', isOversized);
     if (badge) {
       const warnings = [];
-      if (isOversized) warnings.push('This mini is too large for the printable area and will be left out. Reduce its size or pick a larger page.');
+      if (isOversized) warnings.push('This mini is too large for the printable area and will be left out. Reduce its size, lower the figure margin, or pick a larger page.');
       if (rows[i].normalizationWarning) warnings.push(rows[i].normalizationWarning);
       badge.hidden = warnings.length === 0;
       badge.title = warnings.join(' ');
@@ -391,7 +398,7 @@ function updateCount() {
 
   if (result.skipped.length > 0) {
     showStatus(
-      `${result.skipped.length} mini${result.skipped.length === 1 ? '' : 's'} too large for ${pageLabel} — left out (see flagged rows).`,
+      `${result.skipped.length} mini${result.skipped.length === 1 ? '' : 's'} too large for ${pageLabel} — left out. Reduce the size or figure margin, or pick a larger page (see flagged rows).`,
       'error',
       'oversized',
     );
@@ -400,10 +407,21 @@ function updateCount() {
     clearStatus();
   }
 
-  generateBtn.disabled = generating || result.miniCount === 0;
+  generateBtn.disabled = generating || result.miniCount === 0 || !figureMarginEl.validity.valid;
 }
 
 // --- Settings wiring ---
+
+figureMarginEl.addEventListener('input', () => {
+  if (figureMarginEl.validity.valid) {
+    marginMm = figureMarginEl.valueAsNumber;
+    saveSettings();
+  }
+  updateCount();
+});
+figureMarginEl.addEventListener('change', () => {
+  figureMarginEl.reportValidity();
+});
 
 pageSizeSel.addEventListener('change', () => {
   pageSize = pageSizeSel.value as PageSizeKey;
@@ -503,7 +521,7 @@ generateBtn.addEventListener('click', async () => {
   generateBtn.disabled = true;
   generateBtn.textContent = 'Generating…';
   try {
-    const bytes = await generatePDF(rows, { pageSize, numberDuplicates });
+    const bytes = await generatePDF(rows, { pageSize, numberDuplicates, marginMm });
     const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

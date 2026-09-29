@@ -22,13 +22,13 @@ Vanilla TypeScript SPA. Image decode, layout and PDF generation all happen in th
 
 **Prepared artwork owns bytes and dimensions together.** `artwork.ts` prepares each file once and converts WebP to PNG. Original PNG dimensions come from IHDR; JPEG dimensions come from the PDF decoder's header parser. `Entry.image` retains the original file. `Entry.artwork` holds that prepared original or the trimmed derivative from `normalization.ts`, and is `null` while loading. Thumbnails, estimates and PDFs consume it. Replacement and normalization changes clear it immediately; late results publish only for the entry's latest load token while the entry is still in `rows`.
 
-**Normalization currently trims by alpha.** `figure-bounds.ts` is the pure pixel-buffer seam. `normalization.ts` serializes full-image trim work, memoizes results per prepared original, and returns the original with a warning if no bounds are found or processing fails. The uniform per-mini margin in the domain model is a later ticket.
+**Normalization currently trims by alpha.** `figure-bounds.ts` is the pure pixel-buffer seam. `normalization.ts` serializes full-image trim work, memoizes results per prepared original, and returns the original with a warning if no bounds are found or processing fails. The uniform figure margin is layout geometry, outside the base width; it never changes prepared artwork bytes. Use `PackedMini.totalWidthMm` for packing and drawing, and `baseWidthMm` for figure scale.
 
 **`PackedMini.entryIndex` means different things on each side.** In `main.ts` it indexes `rows` directly. In `pdf.ts` it indexes the *filtered* `valid` snapshot — entries with prepared artwork, a positive count and a resolvable width. `images[]` follows `valid` order. Preserve that alignment when touching either.
 
 **Units.** Millimetres throughout the logic; `pdf.ts` converts to points at draw time via `mm()`. Packing walks top-down (`yTopMm` descending) while PDF coordinates run bottom-up, and `drawMini` does the flip.
 
-**Per-mini geometry.** Unfolded, bottom to top: front tab, front image, fold line, back image, back tab. The back face is drawn under a 180° CTM (`concatTransformationMatrix(-1, 0, 0, -1, …)`) between `pushGraphicsState`/`popGraphicsState`, so its number badge uses the same local coordinates as the front one and lands in the matching visual corner.
+**Per-mini geometry.** Unfolded, bottom to top: front tab, margin, front image, margin, fold line, margin, back image, margin, back tab. The back face is drawn under a 180° CTM (`concatTransformationMatrix(-1, 0, 0, -1, …)`) between `pushGraphicsState`/`popGraphicsState`, so its number badge uses the same local coordinates as the front one and lands in the matching visual corner.
 
 **`MAX_HEIGHT_RATIO` holds height monotonic with size category.** The cap in `sizes.ts` keeps image height at or under 1.5× the base width, so a Large mini always permits a taller figure than a Small one. Tall art is scaled down and centred over its footprint (`imageOffsetXMm`), aspect preserved, uncropped. `sizes.test.ts` guards this.
 
@@ -38,7 +38,7 @@ Vanilla TypeScript SPA. Image decode, layout and PDF generation all happen in th
 
 `SPEC.md` is the v1 spec, and the code has outgrown it. Read it for the deliberate exclusions it argues: URL paste (image hosts send no permissive CORS headers, so a fetch→canvas→PDF path fails regardless of where the site is hosted), background removal, separate front/back artwork.
 
-Artwork stays in memory only. `localStorage` under `pmg-settings` holds page size, the numbering toggle and the normalization toggle.
+Artwork stays in memory only. `localStorage` under `pmg-settings` holds page size, figure margin, the numbering toggle and the normalization toggle. Figure margin applies even when trimming is off; zero restores the layout without added margins.
 
 GitHub Pages serves the site from the Actions workflow. On this fork the `on: push` trigger does not
 fire — GitHub gates push-triggered workflows on forks — so a deploy needs
