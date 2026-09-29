@@ -24,10 +24,10 @@ export function normalizeArtwork(original: PreparedArtwork): Promise<NormalizedA
 }
 
 async function trimArtwork(original: PreparedArtwork): Promise<NormalizedArtwork> {
-  const notFound = { artwork: original, warning: 'No figure bounds found from transparency. The original will print.' };
-  // JPEG cannot carry transparency. Preserve its bytes and PDF dimensions.
-  if (original.format === 'jpg') return notFound;
-  const blob = new Blob([original.bytes as BlobPart], { type: 'image/png' });
+  const notFound = { artwork: original, warning: 'No figure bounds found from transparency or a flat background. The original will print.' };
+  const blob = new Blob([original.bytes as BlobPart], {
+    type: original.format === 'jpg' ? 'image/jpeg' : 'image/png',
+  });
   const bitmap = await createImageBitmap(blob, { imageOrientation: 'none' });
   const canvas = document.createElement('canvas');
   try {
@@ -47,6 +47,8 @@ async function trimArtwork(original: PreparedArtwork): Promise<NormalizedArtwork
     canvas.height = bounds.height;
     ctx.drawImage(bitmap, bounds.x, bounds.y, bounds.width, bounds.height,
       0, 0, bounds.width, bounds.height);
+    // PNG avoids another lossy compression pass for trimmed JPEGs. This can
+    // increase PDF size; disabling normalization restores the original bytes.
     return {
       artwork: {
         bytes: await canvasToPngBytes(canvas),
