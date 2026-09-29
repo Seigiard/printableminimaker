@@ -64,4 +64,22 @@ t('unprepared entries preserve the source indices of packed and oversized entrie
     oversized: result.oversizedEntryIndices }, { placed: [1], oversized: [2] });
 });
 
+t('the sizing model reaches fitting through the packing options', () => {
+  // #given  tall art at Medium: 30 mm tall under the new table, whatever its proportions
+  const e = { ...entry(1), artwork: { ...square, width: 100, height: 300 } };
+  // #when
+  const mini = packEntries([e], { ...opts, sizingModel: 'height' }).pages[0].rows[0].items[0];
+  // #then
+  assert.deepEqual([mini.imageHeightMm, mini.imageWidthMm], [30, 10]);
+});
+
+t('a custom entry carries both of its dimensions into the fit', () => {
+  // #given
+  const e: Entry = { ...entry(1), size: 'custom', customWidthMm: 30, customHeightMm: 45 };
+  // #when
+  const mini = packEntries([e], { ...opts, sizingModel: 'height' }).pages[0].rows[0].items[0];
+  // #then
+  assert.deepEqual([mini.imageHeightMm, mini.imageWidthMm, mini.baseWidthMm], [45, 45, 30]);
+});
+
 console.log(`\n${passed} passed`);

@@ -22,7 +22,7 @@ export type PreparedArtwork = {
 };
 
 // Geometry-only input keeps packing independent of image preparation.
-export type PackingEntry = Pick<Entry, 'size' | 'customWidthMm' | 'count'> & {
+export type PackingEntry = Pick<Entry, 'size' | 'customWidthMm' | 'customHeightMm' | 'count'> & {
   naturalWidth?: number;
   naturalHeight?: number;
 };

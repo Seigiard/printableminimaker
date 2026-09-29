@@ -10,7 +10,7 @@ import {
   concatTransformationMatrix,
 } from 'pdf-lib';
 import type { PreparedArtwork, Entry } from './types';
-import { resolveBaseWidthMm } from './sizes.ts';
+import { hasPackableDimensions } from './sizes.ts';
 import {
   GAP_MM,
   MARGIN_MM,
@@ -38,8 +38,12 @@ export async function generatePDF(
   entries: Entry[],
   opts: GenerateOptions,
 ): Promise<Uint8Array> {
+  // The packer's own dimension rule, so a row it drops for want of a figure
+  // height does not have its artwork embedded and flushed into the file
+  // undrawn. The packer's other drop path — a mini too large for the page —
+  // still slips through here, so an oversized row costs its bytes.
   const valid = entries.filter(
-    (e) => e.artwork && e.count > 0 && resolveBaseWidthMm(e) > 0,
+    (e) => e.artwork && e.count > 0 && hasPackableDimensions(e, opts.sizingModel),
   ).map((e) => ({ ...e }));
   if (valid.length === 0) throw new Error('No valid entries to generate.');
 
@@ -98,6 +102,7 @@ function drawMini(
   const yBottom = mm(yBottomMm);
   const w = mm(mini.totalWidthMm);
   const iw = mm(mini.imageWidthMm);
+  const tabW = mm(mini.tabWidthMm);
   const offX = mm(mini.imageOffsetXMm);
   const totalH = mm(mini.totalHeightMm);
   const tab = mm(TAB_HEIGHT_MM);
@@ -108,12 +113,17 @@ function drawMini(
   // Bottom-up: tab, margin, front image, margin, fold,
   // margin, rotated back image, margin, tab.
 
-  // Cut guides for both tabs; cut around the figures freehand.
+  // Cut guides for both tabs; cut around the figures freehand. Under the
+  // height model the tab is the base's width and a figure may overhang it on
+  // both sides; under the width model it spans the whole mini, as it always
+  // has, and nothing overhangs.
+  const baseX = x + mm(mini.baseOffsetXMm);
+  const tabX = x + mm(mini.tabOffsetXMm);
   for (const y of [yBottom, yBottom + totalH - tab]) {
     pdfPage.drawRectangle({
-      x,
+      x: tabX,
       y,
-      width: w,
+      width: tabW,
       height: tab,
       borderColor: LIGHT_GREY,
       borderWidth: stroke,
@@ -135,7 +145,7 @@ function drawMini(
       mini.label,
       font,
       mini.baseWidthMm,
-      x + margin,
+      baseX,
       yBottom + tab + margin,
     );
   }
@@ -153,12 +163,16 @@ function drawMini(
   // Back label — same local coords as front so it lands on the visual
   // bottom-right of the back face after folding + walking around.
   if (mini.label) {
-    const baseOffsetX = mm((mini.imageWidthMm - mini.baseWidthMm) / 2);
-    drawLabelBadge(pdfPage, mini.label, font, mini.baseWidthMm, baseOffsetX, 0);
+    // The same centring as `baseOffsetXMm`, but measured from the image's own
+    // origin, which is where the flipped frame puts zero.
+    const baseFromImageX = mm((mini.imageWidthMm - mini.baseWidthMm) / 2);
+    drawLabelBadge(pdfPage, mini.label, font, mini.baseWidthMm, baseFromImageX, 0);
   }
   pdfPage.pushOperators(popGraphicsState());
 
-  // Fold line — dotted, at the unfolded mini's vertical centre.
+  // Fold line — dotted, at the unfolded mini's vertical centre. It spans the
+  // reserved column rather than the tab: the crease has to cross every part of
+  // the cut-out piece, an overhanging figure's wings included.
   const foldY = yBottom + tab + imgH + margin * 2;
   pdfPage.drawLine({
     start: { x, y: foldY },
