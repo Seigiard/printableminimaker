@@ -45,14 +45,6 @@ fire — GitHub gates push-triggered workflows on forks — so a deploy needs
 
 ## Agent skills
 
-### Issue tracker
-
-GitHub Issues on `Seigiard/printableminimaker`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-The five canonical roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context: `CONTEXT.md` and `docs/adr/` at the repo root, both created lazily. See `docs/agents/domain.md`.
+- **Filing, reading, labelling or closing an issue** — GitHub Issues on `Seigiard/printableminimaker` via `gh`, plus the wayfinder map conventions: `docs/agents/issue-tracker.md`.
+- **Triaging** — the five canonical roles, each label string equal to its name, all five live in the tracker: `docs/agents/triage-labels.md`.
+- **Exploring the codebase** — single-context domain docs at the repo root, created lazily: `docs/agents/domain.md`.

@@ -11,11 +11,10 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
 - **Close**: `gh issue close <number> --comment "..."`
 
-This clone has two remotes: `origin` (`Seigiard/printableminimaker`, where issues live) and
-`upstream` (`garritfra/printableminimaker`, the fork source). Always target **`Seigiard/printableminimaker`**.
-`gh repo set-default` already pins it in `.git/config`, but that file is not committed — in a fresh
-clone, pass `--repo Seigiard/printableminimaker` or re-run `gh repo set-default Seigiard/printableminimaker`
-so an issue never lands on the upstream repository.
+Always target **`Seigiard/printableminimaker`**. The clone also carries an `upstream` remote pointing at
+`garritfra/printableminimaker`, the fork source, and `gh` can resolve onto it. `gh repo set-default` pins the
+right one in `.git/config`, which is uncommitted — so in a fresh clone, pass `--repo Seigiard/printableminimaker`
+or re-run `gh repo set-default Seigiard/printableminimaker` first.
 
 ## Pull requests as a triage surface
 
