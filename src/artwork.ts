@@ -48,21 +48,23 @@ async function fileToImageBytes(
     return { bytes: new Uint8Array(await file.arrayBuffer()), format: 'png' };
   }
   const bitmap = await createImageBitmap(file);
+  const canvas = document.createElement('canvas');
   try {
-    const canvas = document.createElement('canvas');
     canvas.width = bitmap.width;
     canvas.height = bitmap.height;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Could not get 2D canvas context');
     ctx.drawImage(bitmap, 0, 0);
-    const blob: Blob = await new Promise((resolve, reject) =>
-      canvas.toBlob(
-        (b) => (b ? resolve(b) : reject(new Error('canvas.toBlob failed'))),
-        'image/png',
-      ),
-    );
-    return { bytes: new Uint8Array(await blob.arrayBuffer()), format: 'png' };
+    return { bytes: await canvasToPngBytes(canvas), format: 'png' };
   } finally {
     bitmap.close();
+    canvas.width = canvas.height = 0;
   }
+}
+
+export async function canvasToPngBytes(canvas: HTMLCanvasElement): Promise<Uint8Array> {
+  const blob: Blob = await new Promise((resolve, reject) => {
+    canvas.toBlob((result) => result ? resolve(result) : reject(new Error('canvas.toBlob failed')), 'image/png');
+  });
+  return new Uint8Array(await blob.arrayBuffer());
 }

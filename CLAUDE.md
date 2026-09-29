@@ -20,7 +20,9 @@ Vanilla TypeScript SPA. Image decode, layout and PDF generation all happen in th
 
 **`src/packing.ts` is the single source of layout truth.** Pure module — no DOM, no `pdf-lib`. Both `main.ts` and `pdf.ts` call `packEntries()`, which projects artwork dimensions into the geometry-only `packMinis()` input. New layout constants and rules belong here so the estimate and output stay in step.
 
-**Prepared artwork owns bytes and dimensions together.** `artwork.ts` prepares each file once and converts WebP to PNG. PNG dimensions come from IHDR; JPEG dimensions come from the PDF decoder's header parser. This preserves printed geometry without a full pixel decode for dimensions. `Entry.image` retains the original file; `Entry.artwork` holds a `PreparedArtwork`, or `null` while loading. Thumbnails, estimates and PDFs consume that prepared artwork. Replacement clears it immediately; late load results are accepted only for the current file on a live entry.
+**Prepared artwork owns bytes and dimensions together.** `artwork.ts` prepares each file once and converts WebP to PNG. Original PNG dimensions come from IHDR; JPEG dimensions come from the PDF decoder's header parser. `Entry.image` retains the original file. `Entry.artwork` holds that prepared original or the trimmed derivative from `normalization.ts`, and is `null` while loading. Thumbnails, estimates and PDFs consume it. Replacement and normalization changes clear it immediately; late results publish only for the entry's latest load token while the entry is still in `rows`.
+
+**Normalization currently trims by alpha.** `figure-bounds.ts` is the pure pixel-buffer seam. `normalization.ts` serializes full-image trim work, memoizes results per prepared original, and returns the original with a warning if no bounds are found or processing fails. The uniform per-mini margin in the domain model is a later ticket.
 
 **`PackedMini.entryIndex` means different things on each side.** In `main.ts` it indexes `rows` directly. In `pdf.ts` it indexes the *filtered* `valid` snapshot — entries with prepared artwork, a positive count and a resolvable width. `images[]` follows `valid` order. Preserve that alignment when touching either.
 
@@ -36,7 +38,7 @@ Vanilla TypeScript SPA. Image decode, layout and PDF generation all happen in th
 
 `SPEC.md` is the v1 spec, and the code has outgrown it. Read it for the deliberate exclusions it argues: URL paste (image hosts send no permissive CORS headers, so a fetch→canvas→PDF path fails regardless of where the site is hosted), background removal, separate front/back artwork.
 
-Artwork stays in memory only. `localStorage` under `pmg-settings` holds page size and the numbering toggle.
+Artwork stays in memory only. `localStorage` under `pmg-settings` holds page size, the numbering toggle and the normalization toggle.
 
 GitHub Pages serves the site from the Actions workflow. On this fork the `on: push` trigger does not
 fire — GitHub gates push-triggered workflows on forks — so a deploy needs

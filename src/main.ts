@@ -1,6 +1,7 @@
 import { generatePDF, buildFilename } from './pdf';
 import { packEntries, type PageSizeKey } from './packing';
 import { prepareArtwork } from './artwork';
+import { normalizeArtwork } from './normalization';
 import { DEFAULT_CUSTOM_WIDTH_MM, SIZE_LABELS, SIZE_WIDTH_MM } from './sizes';
 import type { PreparedArtwork, DnDPresetSize, DnDSize, Entry } from './types';
 
@@ -11,6 +12,7 @@ const rowsEl = document.getElementById('rows') as HTMLElement;
 const generateBtn = document.getElementById('generate') as HTMLButtonElement;
 const pageSizeSel = document.getElementById('page-size') as HTMLSelectElement;
 const numberDuplicatesEl = document.getElementById('number-duplicates') as HTMLInputElement;
+const normalizeArtworkEl = document.getElementById('normalize-artwork') as HTMLInputElement;
 const dropzone = document.getElementById('dropzone') as HTMLElement;
 const fileInput = document.getElementById('file-input') as HTMLInputElement;
 const rowsToolbar = document.getElementById('rows-toolbar') as HTMLElement;
@@ -23,19 +25,19 @@ const dragOverlay = document.getElementById('drag-overlay') as HTMLElement;
 
 const ACCEPTED = ['image/png', 'image/jpeg', 'image/webp'];
 
-// --- Settings persistence (page size + number duplicates only; files are
-// explicitly not persisted). ---
+// --- Settings persistence (files are not persisted). ---
 
 const LS_KEY = 'pmg-settings';
 
 let pageSize: PageSizeKey = pageSizeSel.value as PageSizeKey;
 let numberDuplicates = numberDuplicatesEl.checked;
+let normalization = normalizeArtworkEl.checked;
 
 function loadSettings() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return;
-    const s = JSON.parse(raw) as { pageSize?: string; numberDuplicates?: boolean };
+    const s = JSON.parse(raw) as { pageSize?: string; numberDuplicates?: boolean; normalization?: boolean };
     if (s.pageSize === 'a4' || s.pageSize === 'letter') {
       pageSize = s.pageSize;
       pageSizeSel.value = s.pageSize;
@@ -44,6 +46,10 @@ function loadSettings() {
       numberDuplicates = s.numberDuplicates;
       numberDuplicatesEl.checked = s.numberDuplicates;
     }
+    if (typeof s.normalization === 'boolean') {
+      normalization = s.normalization;
+      normalizeArtworkEl.checked = s.normalization;
+    }
   } catch {
     // Ignore malformed/unavailable storage — fall back to defaults.
   }
@@ -51,7 +57,7 @@ function loadSettings() {
 
 function saveSettings() {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify({ pageSize, numberDuplicates }));
+    localStorage.setItem(LS_KEY, JSON.stringify({ pageSize, numberDuplicates, normalization }));
   } catch {
     // Storage may be disabled (private mode); persistence is best-effort.
   }
@@ -104,13 +110,25 @@ function ingestFiles(files: FileList | File[]) {
 
 // --- Row rendering ---
 
+const artworkLoads = new WeakMap<Entry, object>();
+
 async function setImage(entry: Entry, file: File) {
+  const load = {};
+  artworkLoads.set(entry, load);
+  const shouldNormalize = normalization;
+  const isCurrent = () => artworkLoads.get(entry) === load && rows.includes(entry);
   entry.image = file;
   entry.artwork = null;
+  entry.normalizationWarning = undefined;
   try {
-    const artwork = await prepareArtwork(file);
-    if (entry.image !== file || !rows.includes(entry)) return;
+    const original = await prepareArtwork(file);
+    if (!isCurrent()) return;
+    const { artwork, warning } = shouldNormalize
+      ? await normalizeArtwork(original)
+      : { artwork: original, warning: undefined };
+    if (!isCurrent()) return;
     entry.artwork = artwork;
+    entry.normalizationWarning = warning;
     // Patch only this thumbnail so a late load preserves focus in editable fields.
     const thumb = rowEls[rows.indexOf(entry)]?.querySelector('.thumb');
     if (thumb) {
@@ -119,7 +137,7 @@ async function setImage(entry: Entry, file: File) {
     }
     updateCount();
   } catch (err) {
-    if (entry.image !== file || !rows.includes(entry)) return;
+    if (!isCurrent()) return;
     showStatus('Couldn’t load image: ' + (err instanceof Error ? err.message : String(err)), 'error');
   }
 }
@@ -179,12 +197,11 @@ function buildRow(entry: Entry, index: number): HTMLElement {
     }
   });
 
-  // Warning badge for an oversized mini (toggled by updateCount).
+  // Shared warning badge (updated by updateCount).
   const warn = document.createElement('span');
   warn.className = 'warn-badge';
   warn.textContent = '!';
   warn.hidden = true;
-  warn.title = 'This mini is too large for the printable area and will be left out. Reduce its size or pick a larger page.';
   thumb.appendChild(warn);
 
   el.appendChild(thumb);
@@ -352,7 +369,15 @@ function updateCount() {
     const badge = el.querySelector('.warn-badge') as HTMLElement | null;
     const isOversized = oversized.has(i);
     el.classList.toggle('oversized', isOversized);
-    if (badge) badge.hidden = !isOversized;
+    if (badge) {
+      const warnings = [];
+      if (isOversized) warnings.push('This mini is too large for the printable area and will be left out. Reduce its size or pick a larger page.');
+      if (rows[i].normalizationWarning) warnings.push(rows[i].normalizationWarning);
+      badge.hidden = warnings.length === 0;
+      badge.title = warnings.join(' ');
+      badge.setAttribute('aria-label', badge.title);
+      badge.tabIndex = warnings.length ? 0 : -1;
+    }
   });
 
   const pageLabel = pageSize === 'a4' ? 'A4' : 'Letter';
@@ -390,6 +415,15 @@ numberDuplicatesEl.addEventListener('change', () => {
   numberDuplicates = numberDuplicatesEl.checked;
   saveSettings();
   updateCount();
+});
+
+normalizeArtworkEl.addEventListener('change', () => {
+  normalization = normalizeArtworkEl.checked;
+  saveSettings();
+  for (const entry of rows) {
+    if (entry.image) void setImage(entry, entry.image);
+  }
+  render();
 });
 
 // --- Dropzone + multi-select ---
