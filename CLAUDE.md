@@ -12,19 +12,27 @@ node --experimental-strip-types src/packing.test.ts   # one test file
 
 Tests are plain `node:assert/strict` scripts run by Node's type stripping, each with a local `t(name, fn)` helper that throws on failure — no framework, no linter. Write new tests the same way and append the file to the `test` script by hand.
 
-`tsconfig.json` excludes `src/**/*.test.ts`, so `npm run build` typechecks only shipped code. `npm test` is what exercises the tests.
+`tsconfig.json` excludes `src/**/*.test.ts`, so `npm run build` typechecks only shipped code. `npm test` is what exercises them, and CI runs it before the build.
 
 ## Architecture
 
-Vanilla TypeScript SPA. Image decode, layout and PDF generation all happen in the browser; there is no backend and no framework.
+Vanilla TypeScript SPA: image decode, layout and PDF generation all happen in the browser.
 
-**`src/packing.ts` is the single source of layout truth.** Pure module — no DOM, no `pdf-lib`. Both `main.ts` and `pdf.ts` call `packEntries()`, which projects artwork dimensions into the geometry-only `packMinis()` input. New layout constants and rules belong here so the estimate and output stay in step.
+**`src/packing.ts` is the single source of layout truth.** Pure module — no DOM, no `pdf-lib`. Both `main.ts` and `pdf.ts` call `packEntries()`, which projects artwork dimensions into the geometry-only `packMinis()` input. New layout constants and rules belong here so the estimate and the output stay in step.
 
-**Prepared artwork owns bytes and dimensions together.** `artwork.ts` prepares each file once and converts WebP to PNG. Original PNG dimensions come from IHDR; JPEG dimensions come from the PDF decoder's header parser. `Entry.image` retains the original file. `Entry.artwork` holds that prepared original or the trimmed derivative from `normalization.ts`, and is `null` while loading. All trimmed derivatives are PNG, including JPEG inputs: this avoids another lossy compression pass but can increase PDF size. Thumbnails, estimates and PDFs consume the prepared artwork. Replacement and normalization changes clear it immediately; late results publish only for the entry's latest load token while the entry is still in `rows`.
+Each `PackedMini` carries two widths and they are not interchangeable. `baseWidthMm` sets the figure's scale; `totalWidthMm` is that plus a figure margin on each side, and is what packing reserves and drawing outlines.
 
-**Normalization trims by alpha or flat border colour.** `figure-bounds.ts` is the pure pixel-buffer seam. Any transparency takes the alpha path; opaque artwork uses the border median and rejects uneven borders. Colour trimming is a heuristic and can lose details close to the background colour. `normalization.ts` serializes full-image trim work, memoizes results per prepared original, and returns the original with a warning if no bounds are found or processing fails. The uniform figure margin is layout geometry, outside the base width; it never changes prepared artwork bytes. Use `PackedMini.totalWidthMm` for packing and drawing, and `baseWidthMm` for figure scale.
+**`Entry.artwork` is what the whole pipeline reads** — thumbnails, estimates and PDFs alike. It holds either the prepared original or the trimmed derivative, and is `null` while loading. `Entry.image` keeps the original `File`, so turning normalization off re-derives instead of asking the user to upload again.
 
-**`PackedMini.entryIndex` means different things on each side.** In `main.ts` it indexes `rows` directly. In `pdf.ts` it indexes the *filtered* `valid` snapshot — entries with prepared artwork, a positive count and a resolvable width. `images[]` follows `valid` order. Preserve that alignment when touching either.
+**`artwork.ts` prepares each file once**, converting WebP to PNG. Dimensions come from the bytes that will actually print, rather than from a browser decode that may have applied EXIF rotation: PNG from the IHDR chunk, JPEG from the PDF library's header parser.
+
+**Trimmed derivatives are always PNG, JPEG inputs included.** Re-encoding a trimmed JPEG would compress it lossily a second time; the cost is that the PDF can grow. Turning normalization off restores the original bytes.
+
+**`figure-bounds.ts` is the pure pixel-buffer seam** and holds all of the detection logic. Any transparency in the artwork selects the alpha path; fully opaque artwork falls back to the median of its border pixels and rejects a border that disagrees with itself. Colour trimming is a heuristic: a figure whose own colour sits near the background's can lose detail at that edge.
+
+**`normalization.ts` wraps that seam in canvas work.** It serializes trims so only one full-resolution bitmap exists at a time, memoizes per prepared original, and on either no-bounds or an outright failure returns the original with a warning rather than a broken image. The figure margin stays out of this: it is layout geometry applied outside the base width at pack and draw time, it leaves artwork bytes untouched, and it applies whether normalization ran or not.
+
+**`PackedMini.entryIndex` means different things on each side.** In `main.ts` it indexes `rows` directly. In `pdf.ts` it indexes the *filtered* `valid` snapshot — entries with prepared artwork, a positive count and a resolvable width — and `images[]` follows `valid` order. Preserve that alignment when touching either.
 
 **Units.** Millimetres throughout the logic; `pdf.ts` converts to points at draw time via `mm()`. Packing walks top-down (`yTopMm` descending) while PDF coordinates run bottom-up, and `drawMini` does the flip.
 
@@ -32,21 +40,18 @@ Vanilla TypeScript SPA. Image decode, layout and PDF generation all happen in th
 
 **`MAX_HEIGHT_RATIO` holds height monotonic with size category.** The cap in `sizes.ts` keeps image height at or under 1.5× the base width, so a Large mini always permits a taller figure than a Small one. Tall art is scaled down and centred over its footprint (`imageOffsetXMm`), aspect preserved, uncropped. `sizes.test.ts` guards this.
 
-**`index.html` owns the DOM contract.** `main.ts` queries fixed element ids with non-null casts at module load, so renaming an id breaks the app at startup with no type error. Row-list changes rebuild the DOM: mutate `rows`, call `render()`. A late artwork load patches only its thumbnail and calls `updateCount()`, preserving focus in editable fields.
+**`index.html` owns the DOM contract.** `main.ts` queries fixed element ids with non-null casts at module load, so renaming an id breaks the app at startup with no type error. Row-list changes rebuild the DOM: mutate `rows`, call `render()`. Artwork loads asynchronously and races: a result publishes only while its entry still holds that load's token and still sits in `rows`, and it patches its own thumbnail rather than re-rendering, which keeps focus in an editable field.
 
 ## Scope notes
 
-`SPEC.md` is the v1 spec, and the code has outgrown it. Read it for the deliberate exclusions it argues: URL paste (image hosts send no permissive CORS headers, so a fetch→canvas→PDF path fails regardless of where the site is hosted), background removal, separate front/back artwork.
+`SPEC.md` is the v1 spec, and the code has outgrown it — trimming shipped, for one. Read it for the exclusions it argues and the code still honours: URL paste (image hosts send no permissive CORS headers, so a fetch→canvas→PDF path fails wherever the site is hosted), knockout, separate front/back artwork.
 
-Artwork stays in memory only. `localStorage` under `pmg-settings` holds page size, figure margin, the numbering toggle and the normalization toggle. Figure margin applies even when trimming is off; zero restores the layout without added margins.
+Artwork stays in memory only. `localStorage` under `pmg-settings` holds page size, figure margin, the numbering toggle and the normalization toggle.
 
-GitHub Pages serves the site from the Actions workflow. On this fork the `on: push` trigger does not
-fire — GitHub gates push-triggered workflows on forks — so a deploy needs
-`gh workflow run deploy.yml --ref main` until someone enables workflows from the repository's Actions tab.
-`vite.config.ts` sets `base: './'`, which also lets the built bundle run from `file://`.
+GitHub Pages deploys from the Actions workflow on push to `main`. `vite.config.ts` sets `base: './'`, which also lets the built bundle run from `file://`.
 
 ## Agent skills
 
 - **Filing, reading, labelling or closing an issue** — GitHub Issues on `Seigiard/printableminimaker` via `gh`, plus the wayfinder map conventions: `docs/agents/issue-tracker.md`.
 - **Triaging** — the five canonical roles, each label string equal to its name, all five live in the tracker: `docs/agents/triage-labels.md`.
-- **Exploring the codebase** — single-context domain docs at the repo root, created lazily: `docs/agents/domain.md`.
+- **Exploring the codebase** — the glossary in `CONTEXT.md` and the ADRs in `docs/adr/`, and when to read each: `docs/agents/domain.md`.
