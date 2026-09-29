@@ -39,7 +39,7 @@ export async function generatePDF(
   opts: GenerateOptions,
 ): Promise<Uint8Array> {
   const valid = entries.filter(
-    (e) => e.artwork && e.count > 0 && resolveBaseWidthMm(e) > 0,
+    (e) => e.artwork && e.count > 0 && resolveBaseWidthMm(e, opts.sizingModel) > 0,
   ).map((e) => ({ ...e }));
   if (valid.length === 0) throw new Error('No valid entries to generate.');
 
@@ -129,13 +129,17 @@ function drawMini(
   });
 
   // Front label — below the image, extending into the tab if the margin is narrow.
+  // The base sits centred in the reserved column. A figure that overhangs it
+  // widens that column and pushes the base inwards; under the width model the
+  // figure never overhangs, so this is exactly zero and the badge is unmoved.
+  const baseX = x + margin + mm(Math.max(0, mini.imageWidthMm - mini.baseWidthMm) / 2);
   if (mini.label) {
     drawLabelBadge(
       pdfPage,
       mini.label,
       font,
       mini.baseWidthMm,
-      x + margin,
+      baseX,
       yBottom + tab + margin,
     );
   }

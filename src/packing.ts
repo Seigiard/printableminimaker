@@ -1,5 +1,5 @@
-import type { DnDSize, Entry, PackingEntry } from './types';
-import { fitImageBox, resolveBaseWidthMm } from './sizes.ts';
+import type { DnDSize, Entry, PackingEntry, SizingModel } from './types';
+import { fitFigure, resolveSizeDimensionsMm } from './sizes.ts';
 
 // Page and layout constants. These live here (not in pdf.ts) so the packing
 // math is a pure, DOM/PDF-free module that both the live page-count estimate
@@ -23,10 +23,10 @@ export type PackedMini = {
   entryIndex: number;
   copyIndex: number; // 0-based copy within the entry
   size: DnDSize;
-  baseWidthMm: number; // footprint width — determines figure scale
-  totalWidthMm: number; // base plus margins — outline, tabs, packing
+  baseWidthMm: number; // tab footprint, fixed by the size category
+  totalWidthMm: number; // the wider of figure and base, plus margins — outline, tabs, packing
   marginMm: number;
-  imageWidthMm: number; // drawn image width (<= baseWidthMm)
+  imageWidthMm: number; // drawn image width; may exceed baseWidthMm under the height model
   imageHeightMm: number;
   imageOffsetXMm: number; // offset from the outline's left edge, including margin and centering
   totalHeightMm: number;
@@ -56,6 +56,9 @@ export type PackOptions = {
   pageSize: PageSizeKey;
   numberDuplicates: boolean;
   marginMm?: number;
+  // Threaded once, here, rather than added to every signature it would reach.
+  // Defaults to the shipped model; #19 removes it with the losing branch.
+  sizingModel?: SizingModel;
 };
 
 // Project prepared artwork into packing geometry without changing entry indices.
@@ -63,6 +66,7 @@ export function packEntries(entries: Entry[], opts: PackOptions): PackResult {
   return packMinis(entries.map((entry) => ({
     size: entry.size,
     customWidthMm: entry.customWidthMm,
+    customHeightMm: entry.customHeightMm,
     count: entry.count,
     naturalWidth: entry.artwork?.width,
     naturalHeight: entry.artwork?.height,
@@ -79,12 +83,16 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
   const usableWmm = pageWmm - MARGIN_MM * 2;
   const usableHmm = pageHmm - MARGIN_MM * 2;
   const marginMm = opts.marginMm ?? DEFAULT_FIGURE_MARGIN_MM;
+  const sizingModel = opts.sizingModel ?? 'width';
 
   const minis: PackedMini[] = [];
   entries.forEach((e, entryIndex) => {
-    const baseWidthMm = resolveBaseWidthMm(e);
+    const dimensions = resolveSizeDimensionsMm(e, sizingModel);
+    const { baseWidthMm } = dimensions;
     if (
       baseWidthMm <= 0 ||
+      // A custom entry needs both numbers before the height model can size it.
+      (sizingModel === 'height' && dimensions.figureHeightMm <= 0) ||
       e.count <= 0 ||
       e.naturalWidth == null ||
       e.naturalHeight == null ||
@@ -93,9 +101,13 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
     ) {
       return; // not packable yet
     }
-    const { imageWidthMm, imageHeightMm } = fitImageBox(baseWidthMm, e.naturalWidth, e.naturalHeight);
-    const totalWidthMm = baseWidthMm + marginMm * 2;
-    const imageOffsetXMm = marginMm + (baseWidthMm - imageWidthMm) / 2;
+    const { imageWidthMm, imageHeightMm } = fitFigure(dimensions, e.naturalWidth, e.naturalHeight, sizingModel);
+    // A figure may overhang its base, so the reserved column is the wider of
+    // the two. Under the width model the figure never exceeds the base and
+    // this is the base width, as before.
+    const contentWidthMm = Math.max(baseWidthMm, imageWidthMm);
+    const totalWidthMm = contentWidthMm + marginMm * 2;
+    const imageOffsetXMm = marginMm + (contentWidthMm - imageWidthMm) / 2;
     const totalHeightMm = imageHeightMm * 2 + marginMm * 4 + TAB_HEIGHT_MM * 2;
     for (let i = 0; i < e.count; i++) {
       minis.push({
@@ -114,10 +126,11 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
     }
   });
 
-  // Sort by base width descending so wide minis lead each row — reordering rows
-  // in the UI has no effect on output, which is why drag-to-reorder is out of
-  // scope.
-  minis.sort((a, b) => b.baseWidthMm - a.baseWidthMm);
+  // Sort by reserved width descending so wide minis lead each row — reordering
+  // rows in the UI has no effect on output, which is why drag-to-reorder is out
+  // of scope. Under the width model every mini reserves its base plus the same
+  // two margins, so this is the old base-width order unchanged.
+  minis.sort((a, b) => b.totalWidthMm - a.totalWidthMm);
 
   const pages: PackedPage[] = [];
   const skipped: SkippedMini[] = [];
