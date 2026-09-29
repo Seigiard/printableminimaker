@@ -1,5 +1,16 @@
-import type { DnDPresetSize, DnDSize, Entry } from './types';
+import type { DnDPresetSize, DnDSize, Entry, SizingModel } from './types';
 
+// ADR-0002: independently tuned dimensions for the height-driven model.
+export const SIZE_DIMENSIONS_MM: Record<DnDPresetSize, { baseWidthMm: number; figureHeightMm: number }> = {
+  tiny: { baseWidthMm: 20, figureHeightMm: 24 },
+  small: { baseWidthMm: 25, figureHeightMm: 25 },
+  medium: { baseWidthMm: 25, figureHeightMm: 30 },
+  large: { baseWidthMm: 37, figureHeightMm: 44 },
+  huge: { baseWidthMm: 50, figureHeightMm: 60 },
+  gargantuan: { baseWidthMm: 75, figureHeightMm: 90 },
+};
+
+// Legacy widths remain the default until the comparison is complete (#19).
 export const SIZE_WIDTH_MM: Record<DnDPresetSize, number> = {
   tiny: 12.5,
   small: 25,
@@ -20,13 +31,23 @@ export const SIZE_LABELS: Record<DnDSize, string> = {
 };
 
 export const DEFAULT_CUSTOM_WIDTH_MM = 30;
+export const DEFAULT_CUSTOM_HEIGHT_MM = 30;
+
+export function resolveFigureHeightMm(e: Pick<Entry, 'size' | 'customHeightMm'>): number {
+  if (e.size === 'custom') return validDimension(e.customHeightMm);
+  return SIZE_DIMENSIONS_MM[e.size].figureHeightMm;
+}
 
 // Resolves the base/footprint width (mm) of an entry: the preset width for a
 // D&D size, or the user's custom width. Returns 0 when a custom entry has no
 // valid width yet, which callers treat as "not packable".
-export function resolveBaseWidthMm(e: Pick<Entry, 'size' | 'customWidthMm'>): number {
-  if (e.size === 'custom') return e.customWidthMm != null && e.customWidthMm > 0 ? e.customWidthMm : 0;
-  return SIZE_WIDTH_MM[e.size];
+export function resolveBaseWidthMm(e: Pick<Entry, 'size' | 'customWidthMm'>, model: SizingModel = 'width'): number {
+  if (e.size === 'custom') return validDimension(e.customWidthMm);
+  return model === 'height' ? SIZE_DIMENSIONS_MM[e.size].baseWidthMm : SIZE_WIDTH_MM[e.size];
+}
+
+function validDimension(value: number | undefined): number {
+  return value != null && Number.isFinite(value) && value > 0 ? value : 0;
 }
 
 // A mini's image height is capped at this multiple of its base width. The base

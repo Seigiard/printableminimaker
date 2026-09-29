@@ -47,6 +47,18 @@
         </label>
       </section>
 
+      <details>
+        <summary>Experimental sizing</summary>
+        <label>
+          Sizing model
+          <select id="sizing-model" aria-describedby="sizing-model-note">
+            <option value="width" selected>Base width (current)</option>
+            <option value="height">Figure height (preview)</option>
+          </select>
+        </label>
+        <p id="sizing-model-note" class="hint">Preview the planned base widths and figure heights. Your selection is saved, but PDFs, page counts and size warnings still use the current width-based sizing until height scaling is available.</p>
+      </details>
+
       <!-- Drag-and-drop / multi-select. Large when empty, a slim strip once
            there are entries. -->
       <section
