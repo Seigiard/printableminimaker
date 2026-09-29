@@ -23,6 +23,20 @@ const A4 = PAGE_SIZES_MM.a4;
 const usableW = A4.w - MARGIN_MM * 2; // 190
 const usableH = A4.h - MARGIN_MM * 2; // 277
 
+t('default margin reserves paper around both faces without shrinking the figure', () => {
+  // #given
+  const entries = [entry({})];
+  // #when
+  const result = packMinis(entries, { pageSize: 'a4', numberDuplicates: false });
+  const mini = result.pages[0].rows[0].items[0];
+  // #then
+  assert.deepEqual(
+    [mini.baseWidthMm, mini.imageWidthMm, mini.imageHeightMm,
+      mini.totalWidthMm, mini.totalHeightMm, mini.imageOffsetXMm, mini.marginMm],
+    [25, 25, 25, 29, 74, 2, 2],
+  );
+});
+
 // --- counting & expansion ---
 
 t('empty input yields zero pages and zero minis', () => {
@@ -60,7 +74,7 @@ t('medium squares pack 7 per row, 4 rows per A4 page', () => {
   // medium = 25mm base, square art => image 25x25, totalHeight = 25*2 + 8*2 = 66mm.
   // width: 7*25 + 6*2 = 187 <= 190; 8 would be 214 > 190.
   // height: first row 66, each more +68; 4 rows = 66+68*3 = 270 <= 277; 5th = 338 > 277.
-  const r = packMinis([entry({ count: 28 })], { pageSize: 'a4', numberDuplicates: false });
+  const r = packMinis([entry({ count: 28 })], { pageSize: 'a4', numberDuplicates: false, marginMm: 0 });
   assert.equal(r.pageCount, 1);
   assert.equal(r.pages[0].rows.length, 4);
   for (const row of r.pages[0].rows) {
@@ -82,7 +96,7 @@ t('no row exceeds usable width and no page exceeds usable height', () => {
 });
 
 t('29 medium squares spill onto a second page', () => {
-  const r = packMinis([entry({ count: 29 })], { pageSize: 'a4', numberDuplicates: false });
+  const r = packMinis([entry({ count: 29 })], { pageSize: 'a4', numberDuplicates: false, marginMm: 0 });
   assert.equal(r.pageCount, 2);
 });
 
@@ -90,7 +104,7 @@ t('29 medium squares spill onto a second page', () => {
 
 t('mini wider than the page is reported as skipped, not silently dropped', () => {
   const r = packMinis(
-    [entry({ size: 'custom', customWidthMm: 200 })], // 200 > 190 usable width
+    [entry({ size: 'custom', customWidthMm: 200 })], // 204 mm including margins > 190 usable width
     { pageSize: 'a4', numberDuplicates: false },
   );
   assert.equal(r.miniCount, 0);
@@ -101,7 +115,7 @@ t('mini wider than the page is reported as skipped, not silently dropped', () =>
 });
 
 t('mini taller than the page is reported as skipped', () => {
-  // custom 140mm square: image 140x140, totalHeight = 140*2 + 16 = 296 > 277.
+  // custom 140mm square: image 140x140, totalHeight = 140*2 + 2*4 + 16 = 304 > 277.
   const r = packMinis(
     [entry({ size: 'custom', customWidthMm: 140 })],
     { pageSize: 'a4', numberDuplicates: false },
@@ -140,7 +154,7 @@ t('a row exactly filling usable width packs as one row', () => {
   // that exactly hit the boundary: custom 62mm, 3 of them: 3*62 + 2*2 = 190.
   const r = packMinis(
     [entry({ size: 'custom', customWidthMm: 62, count: 3 })],
-    { pageSize: 'a4', numberDuplicates: false },
+    { pageSize: 'a4', numberDuplicates: false, marginMm: 0 },
   );
   assert.equal(r.pages[0].rows[0].items.length, 3);
   assert.ok(Math.abs(r.pages[0].rows[0].widthMm - 190) < 1e-9);
@@ -151,7 +165,7 @@ t('one mm over the boundary wraps to a second row on the same page', () => {
   // (short totalHeight) so the wrapped row still fits on the first page.
   const r = packMinis(
     [entry({ size: 'custom', customWidthMm: 62.5, count: 3, naturalWidth: 300, naturalHeight: 100 })],
-    { pageSize: 'a4', numberDuplicates: false },
+    { pageSize: 'a4', numberDuplicates: false, marginMm: 0 },
   );
   assert.equal(r.pageCount, 1);
   assert.equal(r.pages[0].rows[0].items.length, 2);
@@ -173,9 +187,83 @@ t('no labels when numberDuplicates is off', () => {
 });
 
 t('totalHeight matches the front+back image plus two tabs', () => {
-  const r = packMinis([entry({ size: 'medium' })], { pageSize: 'a4', numberDuplicates: false });
+  const r = packMinis([entry({ size: 'medium' })], { pageSize: 'a4', numberDuplicates: false, marginMm: 0 });
   const m = r.pages[0].rows[0].items[0];
   assert.equal(m.totalHeightMm, m.imageHeightMm * 2 + TAB_HEIGHT_MM * 2);
+});
+
+t('2 mm margins fit 18 medium squares per A4 sheet with 2 mm gaps', () => {
+  // #given
+  const entries = [entry({ count: 19 })];
+  // #when
+  const result = packMinis(entries, { pageSize: 'a4', numberDuplicates: false, marginMm: 2 });
+  // #then
+  assert.deepEqual(result.pages.map((page) => ({
+    height: page.heightMm,
+    rows: page.rows.map((row) => [row.items.length, row.widthMm, row.heightMm]),
+  })), [
+    { height: 226, rows: [[6, 184, 74], [6, 184, 74], [6, 184, 74]] },
+    { height: 74, rows: [[1, 29, 74]] },
+  ]);
+});
+
+t('margin alone can make a mini too wide or too tall for A4', () => {
+  // #given
+  const entries = [
+    entry({ size: 'custom', customWidthMm: 187, naturalWidth: 1000 }),
+    entry({ size: 'custom', customWidthMm: 128 }),
+  ];
+  // #when
+  const result = packMinis(entries, { pageSize: 'a4', numberDuplicates: false, marginMm: 2 });
+  // #then
+  assert.deepEqual([result.pageCount, result.miniCount, result.oversizedEntryIndices], [0, 0, [0, 1]]);
+});
+
+t('fractional margins keep a 2 mm gap at the row boundary and cause page overflow', () => {
+  // #given
+  const entries = [entry({ size: 'custom', customWidthMm: 59, count: 7 })];
+  // #when
+  const result = packMinis(entries, { pageSize: 'a4', numberDuplicates: false, marginMm: 1.5 });
+  // #then
+  assert.deepEqual(result.pages.map((page) => ({
+    height: page.heightMm,
+    rows: page.rows.map((row) => [row.items.length, row.widthMm, row.heightMm]),
+  })), [
+    { height: 140, rows: [[3, 190, 140]] },
+    { height: 140, rows: [[3, 190, 140]] },
+    { height: 140, rows: [[1, 62, 140]] },
+  ]);
+});
+
+t('shared tall artwork keeps each size centred within the same margin', () => {
+  // #given
+  const artwork = { naturalWidth: 100, naturalHeight: 300 };
+  const entries = [entry({ ...artwork, size: 'tiny' }), entry({ ...artwork, size: 'large' })];
+  // #when
+  const result = packMinis(entries, { pageSize: 'a4', numberDuplicates: false, marginMm: 3 });
+  // #then
+  assert.deepEqual(result.pages.flatMap((page) => page.rows.flatMap((row) => row.items.map((mini) => [
+    mini.baseWidthMm, mini.imageWidthMm, mini.imageHeightMm,
+    mini.totalWidthMm, mini.totalHeightMm, mini.imageOffsetXMm, mini.marginMm,
+  ]))), [
+    [50, 25, 75, 56, 178, 15.5, 3],
+    [12.5, 6.25, 18.75, 18.5, 65.5, 6.125, 3],
+  ]);
+});
+
+t('zero margin preserves the old numbered mini geometry', () => {
+  // #given
+  const entries = [entry({})];
+  // #when
+  const result = packMinis(entries, { pageSize: 'a4', numberDuplicates: true, marginMm: 0 });
+  // #then
+  assert.deepEqual(result.pages, [{ heightMm: 66, rows: [{
+    widthMm: 25, heightMm: 66, items: [{
+      entryIndex: 0, copyIndex: 0, size: 'medium', baseWidthMm: 25,
+      imageWidthMm: 25, imageHeightMm: 25, imageOffsetXMm: 0,
+      totalWidthMm: 25, totalHeightMm: 66, marginMm: 0, label: '1',
+    }],
+  }] }]);
 });
 
 console.log(`\n${passed} passed`);
