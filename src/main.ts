@@ -35,7 +35,7 @@ let pageSize: PageSizeKey = pageSizeSel.value as PageSizeKey;
 let numberDuplicates = numberDuplicatesEl.checked;
 let normalization = normalizeArtworkEl.checked;
 let marginMm = DEFAULT_FIGURE_MARGIN_MM;
-// Temporary comparison setting; #17 connects it to scaling, #19 removes the loser.
+// Temporary comparison setting; #19 removes the losing model and this switch.
 let sizingModel: SizingModel = 'width';
 figureMarginEl.value = String(marginMm);
 

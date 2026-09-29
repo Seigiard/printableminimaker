@@ -63,6 +63,17 @@ export function resolveSizeDimensionsMm(
   };
 }
 
+// The dimension rule packing applies, shared so the PDF writer embeds artwork
+// for exactly the entries that will be drawn. A custom entry needs both of its
+// numbers before the height model can size it.
+export function hasPackableDimensions(
+  e: Pick<Entry, 'size' | 'customWidthMm' | 'customHeightMm'>,
+  model: SizingModel = 'width',
+): boolean {
+  const { baseWidthMm, figureHeightMm } = resolveSizeDimensionsMm(e, model);
+  return baseWidthMm > 0 && (model !== 'height' || figureHeightMm > 0);
+}
+
 function validDimension(value: number | undefined): number {
   return value != null && Number.isFinite(value) && value > 0 ? value : 0;
 }

@@ -1,5 +1,5 @@
 import type { DnDSize, Entry, PackingEntry, SizingModel } from './types';
-import { fitFigure, resolveSizeDimensionsMm } from './sizes.ts';
+import { fitFigure, hasPackableDimensions, resolveSizeDimensionsMm } from './sizes.ts';
 
 // Page and layout constants. These live here (not in pdf.ts) so the packing
 // math is a pure, DOM/PDF-free module that both the live page-count estimate
@@ -26,6 +26,8 @@ export type PackedMini = {
   baseWidthMm: number; // tab footprint, fixed by the size category
   totalWidthMm: number; // the wider of figure and base, plus margins — reserved column, fold line, packing
   tabWidthMm: number; // drawn tab outline, centred in the reserved column
+  tabOffsetXMm: number; // offset from the reserved column's left edge
+  baseOffsetXMm: number; // ditto, for the base the figure and badge sit over
   marginMm: number;
   imageWidthMm: number; // drawn image width; may exceed baseWidthMm under the height model
   imageHeightMm: number;
@@ -74,10 +76,13 @@ export function packEntries(entries: Entry[], opts: PackOptions): PackResult {
   })), opts);
 }
 
-// Expands entries into individual minis with resolved geometry, sorted by base
-// width descending, then bin-packs them into rows and pages within the usable
-// area. Entries lacking an image's natural dimensions or a valid base width are
-// simply omitted (not yet packable); minis too large for a single page are
+// Expands entries into individual minis with resolved geometry, sorted by
+// reserved width descending, then bin-packs them into rows and pages within the
+// usable area. Entries lacking an image's natural dimensions or the dimensions
+// their sizing model needs are simply omitted (not yet packable) — under the
+// height model that includes a custom entry with no figure height, which is why
+// a row can vanish from the count with a perfectly good base width. Minis too
+// large for a single page are
 // reported as skipped rather than silently dropped.
 export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResult {
   const { w: pageWmm, h: pageHmm } = PAGE_SIZES_MM[opts.pageSize];
@@ -91,9 +96,7 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
     const dimensions = resolveSizeDimensionsMm(e, sizingModel);
     const { baseWidthMm } = dimensions;
     if (
-      baseWidthMm <= 0 ||
-      // A custom entry needs both numbers before the height model can size it.
-      (sizingModel === 'height' && dimensions.figureHeightMm <= 0) ||
+      !hasPackableDimensions(e, sizingModel) ||
       e.count <= 0 ||
       e.naturalWidth == null ||
       e.naturalHeight == null ||
@@ -114,6 +117,12 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
     // Under the width model a figure never overhangs, and the tab spans the
     // whole mini as it always has. #19 drops that branch with the switch.
     const tabWidthMm = sizingModel === 'height' ? baseWidthMm : totalWidthMm;
+    // Base, tab and figure share one centring rule, and all three offsets are
+    // derived here rather than in the drawer: in millimetres they collapse to
+    // exactly a margin and exactly zero under the width model, which the same
+    // arithmetic in points does not.
+    const tabOffsetXMm = (totalWidthMm - tabWidthMm) / 2;
+    const baseOffsetXMm = marginMm + (contentWidthMm - baseWidthMm) / 2;
     const totalHeightMm = imageHeightMm * 2 + marginMm * 4 + TAB_HEIGHT_MM * 2;
     for (let i = 0; i < e.count; i++) {
       minis.push({
@@ -123,6 +132,8 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
         baseWidthMm,
         totalWidthMm,
         tabWidthMm,
+        tabOffsetXMm,
+        baseOffsetXMm,
         marginMm,
         imageWidthMm,
         imageHeightMm,

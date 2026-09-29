@@ -10,7 +10,7 @@ import {
   concatTransformationMatrix,
 } from 'pdf-lib';
 import type { PreparedArtwork, Entry } from './types';
-import { resolveBaseWidthMm } from './sizes.ts';
+import { hasPackableDimensions } from './sizes.ts';
 import {
   GAP_MM,
   MARGIN_MM,
@@ -38,8 +38,10 @@ export async function generatePDF(
   entries: Entry[],
   opts: GenerateOptions,
 ): Promise<Uint8Array> {
+  // Same rule as the packer's: embedding artwork for a row it drops would
+  // flush those bytes into the file without ever drawing them.
   const valid = entries.filter(
-    (e) => e.artwork && e.count > 0 && resolveBaseWidthMm(e, opts.sizingModel) > 0,
+    (e) => e.artwork && e.count > 0 && hasPackableDimensions(e, opts.sizingModel),
   ).map((e) => ({ ...e }));
   if (valid.length === 0) throw new Error('No valid entries to generate.');
 
@@ -109,14 +111,10 @@ function drawMini(
   // Bottom-up: tab, margin, front image, margin, fold,
   // margin, rotated back image, margin, tab.
 
-  // The base sits centred in the reserved column: an overhanging figure widens
-  // that column symmetrically around it, and under the width model there is no
-  // overhang and the base sits one margin in, as before.
-  const baseX = x + (w - mm(mini.baseWidthMm)) / 2;
-
   // Cut guides for both tabs; cut around the figures freehand. The tab is the
-  // base, centred the same way, so a figure may overhang it on both sides.
-  const tabX = x + (w - tabW) / 2;
+  // base's width, so a figure may overhang it on both sides.
+  const baseX = x + mm(mini.baseOffsetXMm);
+  const tabX = x + mm(mini.tabOffsetXMm);
   for (const y of [yBottom, yBottom + totalH - tab]) {
     pdfPage.drawRectangle({
       x: tabX,

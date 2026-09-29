@@ -303,7 +303,7 @@ await t('the fold line spans the reserved column, overhang and margins included'
   }, { fold: 40, tab: 20, figure: 36, crossesFigure: true, atVerticalCentre: true });
 });
 
-await t('naming the width model leaves the sheet as it is today', async () => {
+await t('the width model is what drawing falls back to when no model is named', async () => {
   // #given
   const entries: Entry[] = [{ ...entry, size: 'gargantuan' }, entry];
   const opts = { pageSize: 'a4', numberDuplicates: true, marginMm: 2 } as const;
@@ -311,6 +311,24 @@ await t('naming the width model leaves the sheet as it is today', async () => {
   const named = await read(await generatePDF(entries, { ...opts, sizingModel: 'width' }));
   // #then
   assert.deepEqual(named, await read(await generatePDF(entries, opts)));
+});
+
+// The two tests above compare the code against itself, so neither would notice
+// the width model's own geometry moving. These are the literal millimetres it
+// has always printed.
+await t('the width model puts the badge a fixed step inside the base it marks', async () => {
+  // #when
+  const { minis } = await read(await generatePDF([{ ...entry, size: 'medium' }], {
+    pageSize: 'a4', numberDuplicates: true, marginMm: 2,
+  }));
+  // #then  a 25 mm base one margin in from the mini's left edge, badge at its right
+  const [mini] = minis;
+  const badge = mini.front.badge!;
+  assert.deepEqual({
+    baseLeftInset: asMm(badge.right + 0.8 * PT_PER_MM - mini.extent.left - 25 * PT_PER_MM),
+    badgeWidth: widthMm(badge),
+    badgeHeight: asMm(badge.top - badge.bottom),
+  }, { baseLeftInset: 2, badgeWidth: 5.5, badgeHeight: 4.675 });
 });
 
 console.log(`\n${passed} passed`);

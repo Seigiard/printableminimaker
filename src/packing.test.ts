@@ -261,7 +261,8 @@ t('zero margin preserves the old numbered mini geometry', () => {
     widthMm: 25, heightMm: 66, items: [{
       entryIndex: 0, copyIndex: 0, size: 'medium', baseWidthMm: 25,
       imageWidthMm: 25, imageHeightMm: 25, imageOffsetXMm: 0,
-      totalWidthMm: 25, tabWidthMm: 25, totalHeightMm: 66, marginMm: 0, label: '1',
+      totalWidthMm: 25, tabWidthMm: 25, tabOffsetXMm: 0, baseOffsetXMm: 0,
+      totalHeightMm: 66, marginMm: 0, label: '1',
     }],
   }] }]);
 });
@@ -319,7 +320,7 @@ t('the new table changes how many minis reach a page', () => {
   assert.deepEqual(counts, [1, 2]);
 });
 
-t('naming the width model reproduces the default layout exactly', () => {
+t('the width model is what packing falls back to when no model is named', () => {
   // #given
   const entries = [entry({ count: 9, naturalWidth: 100, naturalHeight: 250 }), entry({ size: 'large', count: 3 })];
   const opts = { pageSize: 'a4', numberDuplicates: true, marginMm: 2 } as const;
