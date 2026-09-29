@@ -1,9 +1,11 @@
 import { generatePDF, buildFilename } from './pdf';
-import { packMinis, type PageSizeKey } from './packing';
+import { packEntries, type PageSizeKey } from './packing';
+import { prepareArtwork } from './artwork';
 import { DEFAULT_CUSTOM_WIDTH_MM, SIZE_LABELS, SIZE_WIDTH_MM } from './sizes';
-import type { DnDPresetSize, DnDSize, Entry } from './types';
+import type { PreparedArtwork, DnDPresetSize, DnDSize, Entry } from './types';
 
 const rows: Entry[] = [];
+let generating = false;
 
 const rowsEl = document.getElementById('rows') as HTMLElement;
 const generateBtn = document.getElementById('generate') as HTMLButtonElement;
@@ -90,7 +92,9 @@ function ingestFiles(files: FileList | File[]) {
   }
   clearStatus();
   for (const file of list) {
-    rows.push({ image: file, size: 'medium', count: 1 });
+    const entry: Entry = { image: null, artwork: null, size: 'medium', count: 1 };
+    rows.push(entry);
+    void setImage(entry, file);
   }
   if (rejected > 0) {
     showStatus(`Added ${list.length} image${list.length === 1 ? '' : 's'}; skipped ${rejected} non-image file${rejected === 1 ? '' : 's'}.`, 'info');
@@ -100,9 +104,46 @@ function ingestFiles(files: FileList | File[]) {
 
 // --- Row rendering ---
 
+async function setImage(entry: Entry, file: File) {
+  entry.image = file;
+  entry.artwork = null;
+  try {
+    const artwork = await prepareArtwork(file);
+    if (entry.image !== file || !rows.includes(entry)) return;
+    entry.artwork = artwork;
+    // Patch only this thumbnail so a late load preserves focus in editable fields.
+    const thumb = rowEls[rows.indexOf(entry)]?.querySelector('.thumb');
+    if (thumb) {
+      thumb.querySelector('img')?.remove();
+      thumb.prepend(artworkImage(artwork));
+    }
+    updateCount();
+  } catch (err) {
+    if (entry.image !== file || !rows.includes(entry)) return;
+    showStatus('Couldn’t load image: ' + (err instanceof Error ? err.message : String(err)), 'error');
+  }
+}
+
 // Row elements, parallel to `rows`, so the count pass can flag oversized rows
 // without rebuilding the DOM.
 let rowEls: HTMLElement[] = [];
+
+const thumbnailBlobs = new WeakMap<PreparedArtwork, Blob>();
+
+function artworkImage(artwork: PreparedArtwork): HTMLImageElement {
+  const img = document.createElement('img');
+  let blob = thumbnailBlobs.get(artwork);
+  if (!blob) {
+    blob = new Blob([artwork.bytes as BlobPart], {
+      type: artwork.format === 'jpg' ? 'image/jpeg' : 'image/png',
+    });
+    thumbnailBlobs.set(artwork, blob);
+  }
+  const url = URL.createObjectURL(blob);
+  img.onload = img.onerror = () => URL.revokeObjectURL(url);
+  img.src = url;
+  return img;
+}
 
 function buildRow(entry: Entry, index: number): HTMLElement {
   const el = document.createElement('div');
@@ -113,18 +154,8 @@ function buildRow(entry: Entry, index: number): HTMLElement {
   const thumb = document.createElement('div');
   thumb.className = 'thumb' + (entry.image ? '' : ' empty');
   thumb.title = 'Drop or click to replace image';
-  if (entry.image) {
-    const img = document.createElement('img');
-    const url = URL.createObjectURL(entry.image);
-    img.src = url;
-    img.onload = () => {
-      const known = entry.naturalWidth != null;
-      entry.naturalWidth = img.naturalWidth;
-      entry.naturalHeight = img.naturalHeight;
-      URL.revokeObjectURL(url);
-      if (!known) updateCount();
-    };
-    thumb.appendChild(img);
+  if (entry.artwork) {
+    thumb.appendChild(artworkImage(entry.artwork));
   }
   thumb.addEventListener('click', () => replaceImage(entry));
   thumb.addEventListener('dragover', (e) => {
@@ -141,9 +172,7 @@ function buildRow(entry: Entry, index: number): HTMLElement {
       ACCEPTED.includes(f.type.toLowerCase()),
     );
     if (file) {
-      entry.image = file;
-      entry.naturalWidth = undefined;
-      entry.naturalHeight = undefined;
+      void setImage(entry, file);
       render();
     } else {
       showStatus('That file isn’t a PNG, JPG or WebP image.', 'error');
@@ -249,7 +278,11 @@ function buildRow(entry: Entry, index: number): HTMLElement {
   dup.title = 'Duplicate row';
   dup.addEventListener('click', () => {
     const i = rows.indexOf(entry);
-    if (i >= 0) rows.splice(i + 1, 0, { ...entry });
+    if (i >= 0) {
+      const copy = { ...entry };
+      rows.splice(i + 1, 0, copy);
+      if (copy.image && !copy.artwork) void setImage(copy, copy.image);
+    }
     render();
   });
   actions.appendChild(dup);
@@ -285,9 +318,7 @@ function replaceImage(entry: Entry) {
   picker.addEventListener('change', () => {
     const file = picker.files?.[0];
     if (file && ACCEPTED.includes(file.type.toLowerCase())) {
-      entry.image = file;
-      entry.naturalWidth = undefined;
-      entry.naturalHeight = undefined;
+      void setImage(entry, file);
       render();
     }
   });
@@ -314,7 +345,7 @@ function render() {
 // Recomputes the live "N minis → M pages" readout, flags oversized rows, and
 // toggles the Generate button — all from the pure packing module.
 function updateCount() {
-  const result = packMinis(rows, { pageSize, numberDuplicates });
+  const result = packEntries(rows, { pageSize, numberDuplicates });
 
   const oversized = new Set(result.oversizedEntryIndices);
   rowEls.forEach((el, i) => {
@@ -344,7 +375,7 @@ function updateCount() {
     clearStatus();
   }
 
-  generateBtn.disabled = result.miniCount === 0;
+  generateBtn.disabled = generating || result.miniCount === 0;
 }
 
 // --- Settings wiring ---
@@ -376,7 +407,7 @@ fileInput.addEventListener('change', () => {
 });
 
 addBlankBtn.addEventListener('click', () => {
-  rows.push({ image: null, size: 'medium', count: 1 });
+  rows.push({ image: null, artwork: null, size: 'medium', count: 1 });
   render();
 });
 
@@ -432,6 +463,8 @@ window.addEventListener('drop', (e) => {
 // --- Generate ---
 
 generateBtn.addEventListener('click', async () => {
+  if (generating) return;
+  generating = true;
   const original = generateBtn.textContent;
   generateBtn.disabled = true;
   generateBtn.textContent = 'Generating…';
@@ -454,6 +487,7 @@ generateBtn.addEventListener('click', async () => {
       'error',
     );
   } finally {
+    generating = false;
     generateBtn.textContent = original;
     updateCount();
   }

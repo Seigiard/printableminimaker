@@ -1,4 +1,4 @@
-import type { DnDSize, Entry } from './types';
+import type { DnDSize, Entry, PackingEntry } from './types';
 import { fitImageBox, resolveBaseWidthMm } from './sizes.ts';
 
 // Page and layout constants. These live here (not in pdf.ts) so the packing
@@ -54,12 +54,23 @@ export type PackOptions = {
   numberDuplicates: boolean;
 };
 
+// Project prepared artwork into packing geometry without changing entry indices.
+export function packEntries(entries: Entry[], opts: PackOptions): PackResult {
+  return packMinis(entries.map((entry) => ({
+    size: entry.size,
+    customWidthMm: entry.customWidthMm,
+    count: entry.count,
+    naturalWidth: entry.artwork?.width,
+    naturalHeight: entry.artwork?.height,
+  })), opts);
+}
+
 // Expands entries into individual minis with resolved geometry, sorted by base
 // width descending, then bin-packs them into rows and pages within the usable
 // area. Entries lacking an image's natural dimensions or a valid base width are
 // simply omitted (not yet packable); minis too large for a single page are
 // reported as skipped rather than silently dropped.
-export function packMinis(entries: Entry[], opts: PackOptions): PackResult {
+export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResult {
   const { w: pageWmm, h: pageHmm } = PAGE_SIZES_MM[opts.pageSize];
   const usableWmm = pageWmm - MARGIN_MM * 2;
   const usableHmm = pageHmm - MARGIN_MM * 2;

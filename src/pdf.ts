@@ -9,14 +9,14 @@ import {
   popGraphicsState,
   concatTransformationMatrix,
 } from 'pdf-lib';
-import type { Entry } from './types';
+import type { PreparedArtwork, Entry } from './types';
 import { resolveBaseWidthMm } from './sizes';
 import {
   GAP_MM,
   MARGIN_MM,
   PAGE_SIZES_MM,
   TAB_HEIGHT_MM,
-  packMinis,
+  packEntries,
   type PackedMini,
   type PageSizeKey,
 } from './packing';
@@ -31,38 +31,6 @@ const LIGHT_GREY = rgb(0.7, 0.7, 0.7);
 const DASH_ON_MM = 1;
 const DASH_OFF_MM = 1;
 
-async function fileToImageBytes(
-  file: File,
-): Promise<{ bytes: Uint8Array; format: 'png' | 'jpg' }> {
-  const type = file.type.toLowerCase();
-  if (type === 'image/jpeg' || type === 'image/jpg') {
-    return { bytes: new Uint8Array(await file.arrayBuffer()), format: 'jpg' };
-  }
-  if (type === 'image/png') {
-    return { bytes: new Uint8Array(await file.arrayBuffer()), format: 'png' };
-  }
-  // WebP or other → decode via canvas, re-encode to PNG.
-  const bitmap = await createImageBitmap(file);
-  const canvas = document.createElement('canvas');
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Could not get 2D canvas context');
-  ctx.drawImage(bitmap, 0, 0);
-  const blob: Blob = await new Promise((resolve, reject) =>
-    canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error('canvas.toBlob failed'))),
-      'image/png',
-    ),
-  );
-  return { bytes: new Uint8Array(await blob.arrayBuffer()), format: 'png' };
-}
-
-async function embedFile(pdf: PDFDocument, file: File): Promise<PDFImage> {
-  const { bytes, format } = await fileToImageBytes(file);
-  return format === 'jpg' ? pdf.embedJpg(bytes) : pdf.embedPng(bytes);
-}
-
 export type GenerateOptions = {
   pageSize: PageSizeKey;
   numberDuplicates: boolean;
@@ -72,39 +40,34 @@ export async function generatePDF(
   entries: Entry[],
   opts: GenerateOptions,
 ): Promise<Uint8Array> {
+  const valid = entries.filter(
+    (e) => e.artwork && e.count > 0 && resolveBaseWidthMm(e) > 0,
+  ).map((e) => ({ ...e }));
+  if (valid.length === 0) throw new Error('No valid entries to generate.');
+
   const pdf = await PDFDocument.create();
   pdf.setTitle('Paper Minis');
   pdf.setCreator('Paper Mini Generator');
 
-  const valid = entries.filter(
-    (e) => e.image && e.count > 0 && resolveBaseWidthMm(e) > 0,
-  );
-  if (valid.length === 0) throw new Error('No valid entries to generate.');
-
   const font = await pdf.embedFont(StandardFonts.HelveticaBold);
 
-  // Embed each unique file once, keyed by its position in `valid` so packing's
+  // Embed each unique artwork once, keyed by its position in `valid` so packing's
   // entryIndex maps straight back to the embedded image.
   const images: PDFImage[] = [];
-  const cache = new Map<File, PDFImage>();
+  const cache = new Map<PreparedArtwork, PDFImage>();
   for (const e of valid) {
-    let img = cache.get(e.image!);
+    const artwork = e.artwork!;
+    let img = cache.get(artwork);
     if (!img) {
-      img = await embedFile(pdf, e.image!);
-      cache.set(e.image!, img);
+      img = await (artwork.format === 'jpg'
+        ? pdf.embedJpg(artwork.bytes)
+        : pdf.embedPng(artwork.bytes));
+      cache.set(artwork, img);
     }
     images.push(img);
   }
 
-  // Drive layout off the embedded images' natural pixel dimensions so the PDF
-  // and the live page-count estimate use the exact same packing.
-  const sized: Entry[] = valid.map((e, i) => ({
-    ...e,
-    naturalWidth: images[i].width,
-    naturalHeight: images[i].height,
-  }));
-
-  const { pages } = packMinis(sized, opts);
+  const { pages } = packEntries(valid, opts);
   if (pages.length === 0) throw new Error('Nothing fits on a page.');
 
   const { w: pageWmm, h: pageHmm } = PAGE_SIZES_MM[opts.pageSize];

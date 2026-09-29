@@ -1,7 +1,7 @@
 // One-off test (no framework in this project). Run with: node src/packing.test.ts
 import assert from 'node:assert/strict';
 import { packMinis, GAP_MM, MARGIN_MM, PAGE_SIZES_MM, TAB_HEIGHT_MM } from './packing.ts';
-import type { Entry } from './types.ts';
+import type { PackingEntry as Entry } from './types.ts';
 
 let passed = 0;
 const t = (name: string, fn: () => void) => {
@@ -12,7 +12,6 @@ const t = (name: string, fn: () => void) => {
 
 // Helper: build an entry with square art at a given size/count.
 const entry = (over: Partial<Entry>): Entry => ({
-  image: null,
   size: 'medium',
   count: 1,
   naturalWidth: 100,
