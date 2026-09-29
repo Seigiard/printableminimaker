@@ -37,6 +37,10 @@
           <input type="checkbox" id="number-duplicates" checked />
           Number duplicates
         </label>
+        <label class="checkbox-label" title="Trim transparent margins to the figure. Turn off to print the original artwork.">
+          <input type="checkbox" id="normalize-artwork" checked />
+          Normalize artwork
+        </label>
       </section>
 
       <!-- Drag-and-drop / multi-select. Large when empty, a slim strip once
@@ -81,7 +85,7 @@
 
       <section id="rows" class="rows" aria-label="Mini entries"></section>
 
-      <p class="hint">Tip: rectangular images work as-is. Background isn't removed in v1.</p>
+      <p class="hint">Normalize artwork trims transparent margins. Turn it off to print the original artwork. A ! badge means the artwork could not be trimmed or the mini is too large. Solid backgrounds stay as-is.</p>
 
       <footer class="support">
         <p class="support-text">Free and open source. If this saved you some prep time:</p>

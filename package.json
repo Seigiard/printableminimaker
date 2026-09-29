@@ -15,7 +15,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types src/sizes.test.ts && node --experimental-strip-types src/packing.test.ts && node --experimental-strip-types src/artwork-packing.test.ts"
+    "test": "node --experimental-strip-types src/sizes.test.ts && node --experimental-strip-types src/packing.test.ts && node --experimental-strip-types src/artwork-packing.test.ts && node --experimental-strip-types src/figure-bounds.test.ts"
   },
   "dependencies": {
     "pdf-lib": "^1.17.1"

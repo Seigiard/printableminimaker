@@ -4,6 +4,7 @@ export type DnDSize = DnDPresetSize | 'custom';
 export type Entry = {
   image: File | null;
   artwork: PreparedArtwork | null;
+  normalizationWarning?: string;
   size: DnDSize;
   customWidthMm?: number;
   count: number;
