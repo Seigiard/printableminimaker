@@ -12,7 +12,7 @@ In-browser tool that turns uploaded artwork into print-ready PDFs of foldable D&
 - Trimmed artwork is stored as PNG to avoid another lossy compression pass. Trimming a JPEG can increase the PDF size; turning off normalization keeps the original JPEG bytes.
 - **Figure margin** adds paper around each face without shrinking the figure. It defaults to 2 mm and is saved across reloads. It also applies when normalization is off; set it to 0 for no added margin. The gap between minis stays at 2 mm.
 - Generate a multi-page A4 or Letter PDF, packed greedily by size.
-- Each mini renders as a fold-over rectangle: front image, dotted fold line, back image (rotated 180°), and matching tabs that double up under the base when folded.
+- Each mini has a front image, dotted fold line, back image (rotated 180°), and matching tabs that double up under the base when folded. Faint outlines mark the tab boundaries. Cut around the figure freehand, leaving a rim and keeping the tabs attached to the figure. The artwork's background colour remains inside the image rectangle; only transparent or white areas leave a white rim.
 
 Everything runs client-side. No uploads leave your browser.
 

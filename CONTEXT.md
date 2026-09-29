@@ -52,7 +52,7 @@ The dotted line at a mini's vertical centre, where front and back meet when fold
 The strip at each end of an unfolded mini. Folding brings the two tabs together under the base, doubling their thickness.
 
 **Cut**:
-The path a user's scissors follow. A rectangular cut is printed today; a silhouette cut follows the figure at an offset, leaving a white rim.
+The path a user's scissors follow. Faint outlines mark the tab boundaries; the figure is cut freehand, leaving a rim with the tabs still attached. The rim retains any artwork background colour.
 
 ### The sheet
 

@@ -108,15 +108,17 @@ function drawMini(
   // Bottom-up: tab, margin, front image, margin, fold,
   // margin, rotated back image, margin, tab.
 
-  // Cut outline
-  pdfPage.drawRectangle({
-    x,
-    y: yBottom,
-    width: w,
-    height: totalH,
-    borderColor: LIGHT_GREY,
-    borderWidth: stroke,
-  });
+  // Cut guides for both tabs; cut around the figures freehand.
+  for (const y of [yBottom, yBottom + totalH - tab]) {
+    pdfPage.drawRectangle({
+      x,
+      y,
+      width: w,
+      height: tab,
+      borderColor: LIGHT_GREY,
+      borderWidth: stroke,
+    });
+  }
 
   // Front image — centered horizontally over the base footprint.
   pdfPage.drawImage(pdfImage, {

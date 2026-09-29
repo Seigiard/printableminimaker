@@ -20,7 +20,7 @@ Vanilla TypeScript SPA: image decode, layout and PDF generation all happen in th
 
 **`src/packing.ts` is the single source of layout truth.** Pure module — no DOM, no `pdf-lib`. Both `main.ts` and `pdf.ts` call `packEntries()`, which projects artwork dimensions into the geometry-only `packMinis()` input. New layout constants and rules belong here so the estimate and the output stay in step.
 
-Each `PackedMini` carries two widths and they are not interchangeable. `baseWidthMm` sets the figure's scale; `totalWidthMm` is that plus a figure margin on each side, and is what packing reserves and drawing outlines.
+Each `PackedMini` carries two widths and they are not interchangeable. `baseWidthMm` sets the figure's scale; `totalWidthMm` is that plus a figure margin on each side, and sets the reserved width, tab outlines and fold-line span.
 
 **`Entry.artwork` is what the whole pipeline reads** — thumbnails, estimates and PDFs alike. It holds either the prepared original or the trimmed derivative, and is `null` while loading. `Entry.image` keeps the original `File`, so turning normalization off re-derives instead of asking the user to upload again.
 
