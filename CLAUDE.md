@@ -12,7 +12,7 @@ node --experimental-strip-types src/packing.test.ts   # one test file
 
 Tests are plain `node:assert/strict` scripts run by Node's type stripping, each with a local `t(name, fn)` helper that throws on failure — no framework, no linter. Write new tests the same way and append the file to the `test` script by hand.
 
-`tsconfig.json` excludes `src/**/*.test.ts`, so `npm run build` typechecks only shipped code. `npm test` is what exercises them, and CI runs it before the build.
+`tsconfig.json` excludes `src/**/*.test.ts`, so `npm run build` typechecks only shipped code. `npm test` is what exercises them, and `ci.yml` runs it before the build on every pull request and every push to `main`.
 
 ## Architecture
 
@@ -48,7 +48,7 @@ Each `PackedMini` carries two widths and they are not interchangeable. `baseWidt
 
 Artwork stays in memory only. `localStorage` under `pmg-settings` holds page size, figure margin, the numbering toggle, the normalization toggle and `sizingModel`. The model selection is a temporary preview setting; #17 connects it to scaling and #19 removes the losing model and switch.
 
-GitHub Pages deploys from the Actions workflow on push to `main`. `vite.config.ts` sets `base: './'`, which also lets the built bundle run from `file://`.
+GitHub Pages deploys from `deploy.yml` on push to `main`; it keeps its own copy of the test and build steps so a broken Pages setup cannot fail a pull request. `vite.config.ts` sets `base: './'`, which also lets the built bundle run from `file://`.
 
 ## Agent skills
 
