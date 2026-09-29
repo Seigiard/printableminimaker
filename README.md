@@ -16,18 +16,24 @@ In-browser tool that turns uploaded artwork into print-ready PDFs of foldable D&
 
 Everything runs client-side. No uploads leave your browser.
 
-## D&D base sizes
+## D&D sizes
 
-| Size       | Base width |
-| ---------- | ---------- |
-| Tiny       | 12.5 mm    |
-| Small      | 25 mm      |
-| Medium     | 25 mm      |
-| Large      | 50 mm      |
-| Huge       | 75 mm      |
-| Gargantuan | 100 mm     |
+A size category fixes how tall a figure prints. Its width then follows the artwork, so a broad
+creature prints broad and a slim one slim, and both stand the right height beside each other.
 
-Image height follows the trimmed figure's aspect ratio, or the original artwork's when normalization is off. Tall figures scale down to the per-size height cap without cropping.
+| Size       | Figure height | Base width |
+| ---------- | ------------- | ---------- |
+| Tiny       | 24 mm         | 20 mm      |
+| Small      | 25 mm         | 25 mm      |
+| Medium     | 30 mm         | 25 mm      |
+| Large      | 44 mm         | 37 mm      |
+| Huge       | 60 mm         | 50 mm      |
+| Gargantuan | 90 mm         | 75 mm      |
+
+Base width is the width of the tab, not a map square: it keeps the mini standing and signals
+relative size, and artwork may overhang it the way wings and horns overhang a plastic base. A
+figure spread out sideways is capped at twice its base width, and hitting that cap scales the whole
+figure down rather than cropping it, so that mini prints a little shorter than its category.
 
 ## Run locally
 

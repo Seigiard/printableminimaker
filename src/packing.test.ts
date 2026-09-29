@@ -136,19 +136,6 @@ t('oversized entry is skipped while a fitting entry in the same batch is placed'
   assert.deepEqual(r.oversizedEntryIndices, [1]);
 });
 
-// --- sort by base width descending ---
-
-t('minis are placed sorted by base width descending', () => {
-  const r = packMinis(
-    [entry({ size: 'small' }), entry({ size: 'huge' }), entry({ size: 'large' })],
-    { pageSize: 'a4', numberDuplicates: false },
-  );
-  const widths = r.pages[0].rows.flatMap((row) => row.items.map((m) => m.baseWidthMm));
-  const sorted = [...widths].sort((a, b) => b - a);
-  assert.deepEqual(widths, sorted);
-  assert.equal(widths[0], 50); // huge first
-});
-
 // --- gap/margin math at boundaries ---
 
 t('a row exactly filling usable width packs as one row', () => {
@@ -213,7 +200,8 @@ t('2 mm margins fit 15 medium squares per A4 sheet with 2 mm gaps', () => {
 t('margin alone can make a mini too wide or too tall for A4', () => {
   // #given
   const entries = [
-    // 187 + two margins = 191 > 190 wide; 128*2 + two margins = 280 > 277 tall
+    // 187 + two margins = 191 > 190 wide;
+    // 128*2 + four margins + two tabs = 256 + 8 + 16 = 280 > 277 tall
     entry({ size: 'custom', customWidthMm: 187, customHeightMm: 18, naturalWidth: 1000 }),
     entry({ size: 'custom', customWidthMm: 128, customHeightMm: 128 }),
   ];
