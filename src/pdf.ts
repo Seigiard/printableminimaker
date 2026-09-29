@@ -38,8 +38,10 @@ export async function generatePDF(
   entries: Entry[],
   opts: GenerateOptions,
 ): Promise<Uint8Array> {
-  // Same rule as the packer's: embedding artwork for a row it drops would
-  // flush those bytes into the file without ever drawing them.
+  // The packer's own dimension rule, so a row it drops for want of a figure
+  // height does not have its artwork embedded and flushed into the file
+  // undrawn. The packer's other drop path — a mini too large for the page —
+  // still slips through here, so an oversized row costs its bytes.
   const valid = entries.filter(
     (e) => e.artwork && e.count > 0 && hasPackableDimensions(e, opts.sizingModel),
   ).map((e) => ({ ...e }));
@@ -111,8 +113,10 @@ function drawMini(
   // Bottom-up: tab, margin, front image, margin, fold,
   // margin, rotated back image, margin, tab.
 
-  // Cut guides for both tabs; cut around the figures freehand. The tab is the
-  // base's width, so a figure may overhang it on both sides.
+  // Cut guides for both tabs; cut around the figures freehand. Under the
+  // height model the tab is the base's width and a figure may overhang it on
+  // both sides; under the width model it spans the whole mini, as it always
+  // has, and nothing overhangs.
   const baseX = x + mm(mini.baseOffsetXMm);
   const tabX = x + mm(mini.tabOffsetXMm);
   for (const y of [yBottom, yBottom + totalH - tab]) {
@@ -159,8 +163,10 @@ function drawMini(
   // Back label — same local coords as front so it lands on the visual
   // bottom-right of the back face after folding + walking around.
   if (mini.label) {
-    const baseOffsetX = mm((mini.imageWidthMm - mini.baseWidthMm) / 2);
-    drawLabelBadge(pdfPage, mini.label, font, mini.baseWidthMm, baseOffsetX, 0);
+    // The same centring as `baseOffsetXMm`, but measured from the image's own
+    // origin, which is where the flipped frame puts zero.
+    const baseFromImageX = mm((mini.imageWidthMm - mini.baseWidthMm) / 2);
+    drawLabelBadge(pdfPage, mini.label, font, mini.baseWidthMm, baseFromImageX, 0);
   }
   pdfPage.pushOperators(popGraphicsState());
 

@@ -13,5 +13,8 @@ Review base: 9fe859ecb2c1fc5cd8a4b65702b99cf97fc1bd19
 - [ ] #19 · remove the losing sizing model and its switch
       blocked 2026-09-29: waits on which model wins, judged by looking at printed sheets
 
-Both models therefore ship behind the switch, which defaults to the width model, so nothing
-a user sees changes until that judgement is made.
+Both models therefore ship behind the switch, which defaults to the width model. One caveat:
+#16 shipped the switch while it was inert, so anyone who tried the preview then has
+`sizingModel: 'height'` saved under `pmg-settings`, and on this branch that setting takes
+effect. Their next visit shows the height model already selected, with the page count, the
+size warnings and the PDF to match.

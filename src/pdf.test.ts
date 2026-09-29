@@ -30,8 +30,9 @@ const inside = (inner: Box, outer: Box) =>
   inner.left > outer.left && inner.right < outer.right
   && inner.bottom > outer.bottom && inner.top < outer.top;
 
-// A tab is the base's width, not the mini's, so nothing here may address a
-// shape by its position in the stream. Every shape carries the role the PDF
+// A tab is not reliably the width of its mini — under the height model it is
+// the base's — so nothing here may address a shape by its position in the
+// stream. Every shape carries the role the PDF
 // itself reveals: a stroked closed path is a tab outline, a filled one a
 // badge, a two-point stroke the fold line, and a negative CTM marks the back
 // face. Assertions name those roles.
@@ -313,9 +314,9 @@ await t('the width model is what drawing falls back to when no model is named', 
   assert.deepEqual(named, await read(await generatePDF(entries, opts)));
 });
 
-// The two tests above compare the code against itself, so neither would notice
-// the width model's own geometry moving. These are the literal millimetres it
-// has always printed.
+// The test above compares the code against itself, so it would not notice the
+// width model's own geometry moving. These are the literal millimetres it has
+// always printed.
 await t('the width model puts the badge a fixed step inside the base it marks', async () => {
   // #when
   const { minis } = await read(await generatePDF([{ ...entry, size: 'medium' }], {

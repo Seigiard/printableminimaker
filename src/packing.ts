@@ -117,10 +117,12 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
     // Under the width model a figure never overhangs, and the tab spans the
     // whole mini as it always has. #19 drops that branch with the switch.
     const tabWidthMm = sizingModel === 'height' ? baseWidthMm : totalWidthMm;
-    // Base, tab and figure share one centring rule, and all three offsets are
-    // derived here rather than in the drawer: in millimetres they collapse to
-    // exactly a margin and exactly zero under the width model, which the same
-    // arithmetic in points does not.
+    // Base, tab and figure share one centring rule. These two offsets are
+    // derived here rather than in the drawer because in millimetres they
+    // collapse to exactly a margin and exactly zero under the width model,
+    // which the same arithmetic in points does not. `drawMini` still derives
+    // the back badge's own offset, inside the flipped frame, from this rule —
+    // change it here and change it there.
     const tabOffsetXMm = (totalWidthMm - tabWidthMm) / 2;
     const baseOffsetXMm = marginMm + (contentWidthMm - baseWidthMm) / 2;
     const totalHeightMm = imageHeightMm * 2 + marginMm * 4 + TAB_HEIGHT_MM * 2;
