@@ -4,7 +4,7 @@ import {
   packMinis, tabHeightMm,
   GAP_MM, MARGIN_MM, PAGE_SIZES_MM, TAB_HEIGHT_MM,
 } from './packing.ts';
-import { HEIGHT_SLOT_ORDER } from './sizes.ts';
+import { HEIGHT_SLOT_ORDER, slotGeometryLabel } from './sizes.ts';
 import type { PackingEntry as Entry } from './types.ts';
 
 let passed = 0;
@@ -417,6 +417,27 @@ t('a figure shortened by the width cap gets the tab it actually stands on', () =
   //        have earned — a full tab here is the strip of paper with a dot on top
   assert.deepEqual([mini.imageHeightMm, mini.tabHeightMm, mini.imageHeightMm >= mini.tabHeightMm * 2],
     [11.25, 4.5, true]);
+});
+
+// The dropdown's tooltip is a promise about paper, and it reaches the user
+// through the resolvers while the mini reaches it through the whole pack path.
+// Nothing else would catch the two drifting apart.
+t('the tooltip promises the millimetres the packer actually produces', () => {
+  // #given  every slot on artwork too tall to reach the width cap, so each
+  //         figure prints at its slot's own height
+  const entries = HEIGHT_SLOT_ORDER.map((heightSlot) =>
+    entry({ heightSlot, naturalWidth: 100, naturalHeight: 200 }));
+  // #when
+  const minis = packMinis(entries, { ...sheetOpts, marginMm: 2 })
+    .pages.flatMap((page) => page.rows.flatMap((row) => row.items));
+  // #then
+  assert.deepEqual(
+    HEIGHT_SLOT_ORDER.map(slotGeometryLabel),
+    HEIGHT_SLOT_ORDER.map((slot) => {
+      const mini = minis.find((m) => m.heightSlot === slot)!;
+      return `${mini.baseWidthMm} mm base · ${mini.imageHeightMm} mm tall`;
+    }),
+  );
 });
 
 console.log(`\n${passed} passed`);

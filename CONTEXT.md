@@ -43,7 +43,7 @@ The width of a mini's tab, derived from the size category its height slot carrie
 _Avoid_: Size, width, footprint
 
 **Height slot**:
-What the user picks, and the only input to a mini's scale: a graded real height — nine of them, from `~2'` to `32'+` — carrying its figure height in millimetres and the size category it belongs to. `custom` bypasses the grading and names both numbers directly.
+What the user picks, and the only input to a mini's scale: a graded real height — nine of them, from 0.6 m to 10 m+ — carrying its figure height in millimetres and the size category it belongs to. The interface states the creature's height and leaves the millimetres to a tooltip, because the millimetres are the consequence rather than the choice. `custom` bypasses the grading and names both numbers directly.
 _Avoid_: Size, size category
 
 **Size category**:

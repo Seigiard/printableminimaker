@@ -3,8 +3,8 @@ import { DEFAULT_FIGURE_MARGIN_MM, packEntries, type PageSizeKey } from './packi
 import { prepareArtwork } from './artwork';
 import { normalizeArtwork } from './normalization';
 import {
-  DEFAULT_CUSTOM_HEIGHT_MM, DEFAULT_CUSTOM_WIDTH_MM, DEFAULT_HEIGHT_SLOT, HEIGHT_SLOTS,
-  SIZE_CATEGORY_ORDER, categoryLabel, slotLabel, slotsOfCategory,
+  DEFAULT_CUSTOM_HEIGHT_MM, DEFAULT_CUSTOM_WIDTH_MM, DEFAULT_HEIGHT_SLOT,
+  HEIGHT_SLOT_ORDER, slotGeometryLabel, slotLabel,
 } from './sizes';
 import type { PreparedArtwork, HeightSlot, MiniSize, Entry } from './types';
 
@@ -234,6 +234,9 @@ function buildRow(entry: Entry, index: number): HTMLElement {
   const sizeSel = document.createElement('select');
   appendSlotOptions(sizeSel, { custom: true });
   sizeSel.value = entry.heightSlot;
+  // Option titles are unreliable in a native select, so the select itself
+  // carries what the current choice resolves to.
+  sizeSel.title = slotGeometryLabel(entry.heightSlot);
   sizeWrap.appendChild(sizeSel);
 
   const customWrap = document.createElement('div');
@@ -276,6 +279,7 @@ function buildRow(entry: Entry, index: number): HTMLElement {
 
   sizeSel.addEventListener('change', () => {
     entry.heightSlot = sizeSel.value as MiniSize;
+    sizeSel.title = slotGeometryLabel(entry.heightSlot);
     if (entry.heightSlot === 'custom') {
       if (entry.customWidthMm == null || entry.customWidthMm <= 0) {
         entry.customWidthMm = DEFAULT_CUSTOM_WIDTH_MM;
@@ -348,26 +352,18 @@ function buildRow(entry: Entry, index: number): HTMLElement {
   return el;
 }
 
-// Both size dropdowns group the slots under their category: the group names
-// what the category still decides — the base width — and each option names the
-// height, which is the user's actual choice.
+// Both size dropdowns list the slots flat, shortest first. The option names the
+// creature's own height, which is what the user recognises; the millimetres it
+// resolves to are a consequence and live in the select's tooltip.
 function appendSlotOptions(select: HTMLSelectElement, { custom }: { custom: boolean }) {
-  for (const category of SIZE_CATEGORY_ORDER) {
-    const group = document.createElement('optgroup');
-    group.label = categoryLabel(category);
-    for (const slot of slotsOfCategory(category)) {
-      const opt = document.createElement('option');
-      opt.value = slot;
-      opt.textContent = slotLabel(slot);
-      group.appendChild(opt);
-    }
-    select.appendChild(group);
+  const values: MiniSize[] = custom ? [...HEIGHT_SLOT_ORDER, 'custom'] : [...HEIGHT_SLOT_ORDER];
+  for (const value of values) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = slotLabel(value);
+    opt.title = slotGeometryLabel(value);
+    select.appendChild(opt);
   }
-  if (!custom) return;
-  const opt = document.createElement('option');
-  opt.value = 'custom';
-  opt.textContent = slotLabel('custom');
-  select.appendChild(opt);
 }
 
 function fieldLabel(text: string): HTMLElement {
@@ -513,7 +509,7 @@ function renderBulkSizes() {
 }
 bulkSizeSel.addEventListener('change', () => {
   const slot = bulkSizeSel.value as HeightSlot;
-  if (!(slot in HEIGHT_SLOTS)) return;
+  if (!HEIGHT_SLOT_ORDER.includes(slot)) return;
   for (const entry of rows) entry.heightSlot = slot;
   bulkSizeSel.value = '';
   render();

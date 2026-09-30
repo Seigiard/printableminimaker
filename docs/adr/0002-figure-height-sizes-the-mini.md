@@ -34,22 +34,27 @@ the key: nine slots chosen by height instead of six chosen by the combat grid.
 
 | Slot | Real height | Typical | Category | Base | Figure |
 | --- | --- | --- | --- | --- | --- |
-| Tiny | ~2' | familiar, imp, hawk | Tiny | 20 mm | 11 mm |
-| Small | ~3'2" | halfling, gnome, goblin, kobold | Small | 25 mm | 17 mm |
-| Medium, short | 4'3" | dwarf | Medium | 25 mm | 23 mm |
-| Medium | 5'8" | human, elf, orc | Medium | 25 mm | 30 mm |
-| Medium, tall | ~7' | bugbear, goliath | Medium | 25 mm | 37 mm |
-| Large | ~9' | ogre, troll, owlbear | Large | 37 mm | 48 mm |
-| Large, tall | ~13' | hill giant, young dragon | Large | 37 mm | 69 mm |
-| Huge | ~20' | giant, adult dragon | Huge | 50 mm | 95 mm |
-| Gargantuan | 32'+ | ancient dragon, kraken | Gargantuan | 75 mm | 111 mm |
+| Tiny | 0.6 m (~2') | familiar, imp, hawk | Tiny | 20 mm | 11 mm |
+| Small | 0.95 m (~3'2") | halfling, gnome, wolf | Small | 25 mm | 17 mm |
+| Medium, short | 1.3 m (4'3") | dwarf | Medium | 25 mm | 23 mm |
+| Medium | 1.7 m (5'8") | human, elf, orc | Medium | 25 mm | 30 mm |
+| Medium, tall | 2.1 m (~7') | bugbear, goliath | Medium | 25 mm | 37 mm |
+| Large | 2.7 m (~9') | ogre, troll, owlbear | Large | 37 mm | 48 mm |
+| Large, tall | 4 m (~13') | hill giant, young dragon | Large | 37 mm | 69 mm |
+| Huge | 6 m (~20') | giant, adult dragon | Huge | 50 mm | 95 mm |
+| Gargantuan | 10 m+ (32'+) | ancient dragon, kraken | Gargantuan | 75 mm | 111 mm |
 
-Anchored on a human at 5'8" printing 30 mm, which is what the six-row table's Medium printed, so a
+Both units appear here because the two readers differ: the rules state their size bands in feet, so
+the argument above is in feet, while the interface states metres and shows only the slot's name, the
+creature's height and its examples. The millimetres a slot resolves to are the consequence of the
+choice rather than the choice itself, so they sit in the select's tooltip.
+
+Anchored on a 1.7 m (5'8") human printing 30 mm, which is what the six-row table's Medium printed, so a
 Medium row standing at its full height is untouched. Artwork wide enough to hit the width cap is not:
 the cap moved with the table, and the Consequences section below says how far. That works out to
 5.3 mm per foot, held linear from Tiny up to the tall Large slot. Halfling and gnome
 share a slot deliberately: 3'0" against 3'4" is 12%, invisible once cut out of paper. The dwarf gets
-his own, because 4'3" against 5'8" is 34% and reads instantly.
+his own, because 1.3 m against 1.7 m is 34% and reads instantly.
 
 Small and Medium control the same space in the rules and differ only in real height, which is why
 they share a base width and not a height. Base widths are unchanged from the six-row table; only the

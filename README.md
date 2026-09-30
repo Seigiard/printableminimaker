@@ -26,22 +26,26 @@ Medium runs 4 to 8 feet, so a dwarf and a bugbear are both Medium and used to pr
 Medium and Large are therefore graded finer — three slots and two — and the category comes along
 with the height you pick, since it is what sets the base width.
 
-| Height           | Typical                          | Category   | Figure | Base  |
-| ---------------- | -------------------------------- | ---------- | ------ | ----- |
-| ~2'              | familiar, imp, hawk              | Tiny       | 11 mm  | 20 mm |
-| ~3'2"            | halfling, gnome, goblin, kobold  | Small      | 17 mm  | 25 mm |
-| 4'3"             | dwarf                            | Medium     | 23 mm  | 25 mm |
-| 5'8"             | human, elf, orc                  | Medium     | 30 mm  | 25 mm |
-| ~7'              | bugbear, goliath                 | Medium     | 37 mm  | 25 mm |
-| ~9'              | ogre, troll, owlbear             | Large      | 48 mm  | 37 mm |
-| ~13'             | hill giant, young dragon         | Large      | 69 mm  | 37 mm |
-| ~20'             | giant, adult dragon              | Huge       | 95 mm  | 50 mm |
-| 32'+             | ancient dragon, kraken           | Gargantuan | 111 mm | 75 mm |
+| Name          | Creature | Typical                    | Figure | Base  |
+| ------------- | -------- | -------------------------- | ------ | ----- |
+| Tiny          | 0.6 m    | familiar, imp, hawk        | 11 mm  | 20 mm |
+| Small         | 0.95 m   | halfling, gnome, wolf      | 17 mm  | 25 mm |
+| Medium, short | 1.3 m    | dwarf                      | 23 mm  | 25 mm |
+| Medium        | 1.7 m    | human, elf, orc            | 30 mm  | 25 mm |
+| Medium, tall  | 2.1 m    | bugbear, goliath           | 37 mm  | 25 mm |
+| Large         | 2.7 m    | ogre, troll, owlbear       | 48 mm  | 37 mm |
+| Large, tall   | 4 m      | hill giant, young dragon   | 69 mm  | 37 mm |
+| Huge          | 6 m      | giant, adult dragon        | 95 mm  | 50 mm |
+| Gargantuan    | 10 m+    | ancient dragon, kraken     | 111 mm | 75 mm |
 
-The scale is a human at 5'8" printing 30 mm, held linear at 5.3 mm per foot. The top two rows bend,
-because the paper runs out before the creatures do: at that scale a 32-ft dragon is a 170 mm figure
-needing a 363 mm sheet. Huge and Gargantuan are cut short enough to leave room for a wider figure
-margin, so 20 and 32+ feet print only 17% apart.
+The dropdown shows the first three columns; the millimetres are in the tooltip, since they are what
+the choice resolves to rather than the choice itself.
+
+The scale is a 1.7 m human printing 30 mm — about 17.5 mm of paper per metre of creature — held
+linear up to the tall Large row. The top two rows bend, because the paper runs out before the
+creatures do: at that scale a 10 m dragon is a 170 mm figure needing a 363 mm sheet. Huge and
+Gargantuan are cut short enough to leave room for a wider figure margin, so 6 m and 10 m+ print only
+17% apart.
 
 Base width is the width of the tab, not a map square: it keeps the mini standing and signals
 relative size, and artwork may overhang it the way wings and horns overhang a plastic base. A

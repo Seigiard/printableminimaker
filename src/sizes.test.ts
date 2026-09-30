@@ -1,10 +1,11 @@
 // One-off test (no framework in this project). Run with: node src/sizes.test.ts
 import assert from 'node:assert/strict';
 import {
-  CATEGORY_BASE_WIDTH_MM, HEIGHT_SLOTS, HEIGHT_SLOT_ORDER,
-  categoryLabel, fitFigure, resolveBaseWidthMm, resolveFigureHeightMm, slotLabel,
-  slotsOfCategory,
+  CATEGORY_BASE_WIDTH_MM, CATEGORY_NAMES, HEIGHT_SLOTS, HEIGHT_SLOT_ORDER,
+  SIZE_CATEGORY_ORDER, fitFigure, resolveBaseWidthMm, resolveFigureHeightMm,
+  slotLabel, slotName, slotsOfCategory,
 } from './sizes.ts';
+import type { HeightSlot } from './types.ts';
 
 let passed = 0;
 const t = (name: string, fn: () => void) => {
@@ -84,20 +85,45 @@ t('a halfling prints shorter than a dwarf, and a dwarf shorter than a human', ()
   assert.deepEqual([heights, heights[0] < heights[1] && heights[1] < heights[2]], [[17, 23, 30], true]);
 });
 
-t('a slot option names the height it stands for; its group names the base', () => {
+// One example pins the shape of the text itself, which is a contract with the
+// reader rather than with the code. The rules the labels have to obey are the
+// three tests below, which do not read the table back.
+t('an option reads as name, creature height, examples', () => {
   // #when
-  const options = (['medium-short', 'medium', 'gargantuan', 'custom'] as const).map(slotLabel);
-  const groups = (['medium', 'large'] as const).map(categoryLabel);
+  const options = (['medium', 'custom'] as const).map(slotLabel);
   // #then
-  assert.deepEqual([options, groups], [
-    [
-      '4\'3" · 23 mm tall — dwarf',
-      '5\'8" · 30 mm tall — human, elf, orc',
-      '32\'+ · 111 mm tall — ancient dragon, kraken',
-      'Custom…',
-    ],
-    ['Medium · 25 mm base', 'Large · 37 mm base'],
-  ]);
+  assert.deepEqual(options, ['Medium · 1.7 m · human, elf, orc', 'Custom…']);
+});
+
+t('a slot’s name is its category, told apart from its siblings', () => {
+  // #given  the user reads a name to find a category and to pick within it
+  const named = (slot: HeightSlot) => slotName(slot);
+  // #when
+  const categories = SIZE_CATEGORY_ORDER.map((category) => ({
+    category,
+    names: slotsOfCategory(category).map(named),
+  }));
+  // #then  every name opens with its category; siblings differ; a lone slot is
+  //        named the category and nothing more
+  assert.deepEqual(categories.map(({ category, names }) => ({
+    opensWithCategory: names.every((name) => name.startsWith(CATEGORY_NAMES[category])),
+    distinct: new Set(names).size === names.length,
+    loneSlotIsBare: names.length > 1 || names[0] === CATEGORY_NAMES[category],
+  })), SIZE_CATEGORY_ORDER.map(() =>
+    ({ opensWithCategory: true, distinct: true, loneSlotIsBare: true })));
+});
+
+// The dropdown is where #24's defect would come back: three Medium slots that
+// read alike are the dwarf and the bugbear again, one step earlier.
+t('no two options read alike, and each carries its own slot’s height', () => {
+  // #when
+  const options = HEIGHT_SLOT_ORDER.map(slotLabel);
+  // #then
+  assert.deepEqual({
+    distinct: new Set(options).size,
+    carriesOwnHeight: HEIGHT_SLOT_ORDER.every((slot, i) =>
+      options[i].includes(HEIGHT_SLOTS[slot].realHeight)),
+  }, { distinct: HEIGHT_SLOT_ORDER.length, carriesOwnHeight: true });
 });
 
 t('custom dimensions come from the entry rather than the table', () => {

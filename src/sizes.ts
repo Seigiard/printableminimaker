@@ -33,13 +33,14 @@ export const SIZE_CATEGORY_ORDER = [
 
 export type HeightSlotSpec = {
   category: SizeCategory;
-  realHeight: string; // the height the slot is graded at, as a player would say it
+  grade?: 'short' | 'tall'; // set only where a category carries more than one slot
+  realHeight: string; // the height the slot is graded at, as the interface states it
   typical: string; // creatures that land here, for the dropdown
   figureHeightMm: number;
 };
 
 // ADR-0002: height is the user's input and the size category follows from the
-// slot, rather than the other way round. Graded on a human at 5'8" printing
+// slot, rather than the other way round. Graded on a 1.7 m human printing
 // 30 mm — today's Medium, so an existing Medium row is untouched — which works
 // out to 5.3 mm per foot, held linear from Tiny up to the tall Large slot.
 //
@@ -61,15 +62,15 @@ export type HeightSlotSpec = {
 // table inflated Tiny, because the tab gives way instead: `tabHeightMm` in
 // packing.ts shrinks it under a short figure. See ADR-0002 on the tab floor.
 export const HEIGHT_SLOTS: Record<HeightSlot, HeightSlotSpec> = {
-  'tiny': { category: 'tiny', realHeight: '~2\'', typical: 'familiar, imp, hawk', figureHeightMm: 11 },
-  'small': { category: 'small', realHeight: '~3\'2"', typical: 'halfling, gnome, goblin, kobold', figureHeightMm: 17 },
-  'medium-short': { category: 'medium', realHeight: '4\'3"', typical: 'dwarf', figureHeightMm: 23 },
-  'medium': { category: 'medium', realHeight: '5\'8"', typical: 'human, elf, orc', figureHeightMm: 30 },
-  'medium-tall': { category: 'medium', realHeight: '~7\'', typical: 'bugbear, goliath', figureHeightMm: 37 },
-  'large': { category: 'large', realHeight: '~9\'', typical: 'ogre, troll, owlbear', figureHeightMm: 48 },
-  'large-tall': { category: 'large', realHeight: '~13\'', typical: 'hill giant, young dragon', figureHeightMm: 69 },
-  'huge': { category: 'huge', realHeight: '~20\'', typical: 'giant, adult dragon', figureHeightMm: 95 },
-  'gargantuan': { category: 'gargantuan', realHeight: '32\'+', typical: 'ancient dragon, kraken', figureHeightMm: 111 },
+  'tiny': { category: 'tiny', realHeight: '0.6 m', typical: 'familiar, imp, hawk', figureHeightMm: 11 },
+  'small': { category: 'small', realHeight: '0.95 m', typical: 'halfling, gnome, wolf', figureHeightMm: 17 },
+  'medium-short': { category: 'medium', grade: 'short', realHeight: '1.3 m', typical: 'dwarf', figureHeightMm: 23 },
+  'medium': { category: 'medium', realHeight: '1.7 m', typical: 'human, elf, orc', figureHeightMm: 30 },
+  'medium-tall': { category: 'medium', grade: 'tall', realHeight: '2.1 m', typical: 'bugbear, goliath', figureHeightMm: 37 },
+  'large': { category: 'large', realHeight: '2.7 m', typical: 'ogre, troll, owlbear', figureHeightMm: 48 },
+  'large-tall': { category: 'large', grade: 'tall', realHeight: '4 m', typical: 'hill giant, young dragon', figureHeightMm: 69 },
+  'huge': { category: 'huge', realHeight: '6 m', typical: 'giant, adult dragon', figureHeightMm: 95 },
+  'gargantuan': { category: 'gargantuan', realHeight: '10 m+', typical: 'ancient dragon, kraken', figureHeightMm: 111 },
 };
 
 // Shortest first, which is the order the dropdown and the tests both want.
@@ -84,18 +85,29 @@ export function slotsOfCategory(category: SizeCategory): HeightSlot[] {
   return HEIGHT_SLOT_ORDER.filter((slot) => HEIGHT_SLOTS[slot].category === category);
 }
 
-// The dropdown groups slots under their category, so the option says what the
-// option alone decides — how tall this mini stands — and the group says what
-// the category decides. Both are derived from the table so neither can drift
-// from the geometry.
-export function slotLabel(size: MiniSize): string {
-  if (size === 'custom') return CUSTOM_SIZE_NAME;
-  const { realHeight, typical, figureHeightMm } = HEIGHT_SLOTS[size];
-  return `${realHeight} · ${figureHeightMm} mm tall — ${typical}`;
+// A slot's own name: its size category, and the grade within it where the
+// category carries more than one slot. Composed rather than stored, so the
+// category name has one source.
+export function slotName(size: HeightSlot): string {
+  const { category, grade } = HEIGHT_SLOTS[size];
+  return grade ? `${CATEGORY_NAMES[category]}, ${grade}` : CATEGORY_NAMES[category];
 }
 
-export function categoryLabel(category: SizeCategory): string {
-  return `${CATEGORY_NAMES[category]} · ${CATEGORY_BASE_WIDTH_MM[category]} mm base`;
+// What a dropdown option says. The creature's own height, in metres, is the
+// thing a user recognises — a dwarf against a bugbear is 1.3 m against 2.1 m,
+// where "Medium" says nothing. The millimetres the mini prints at are the
+// consequence, not the choice, so they go in the tooltip below.
+export function slotLabel(size: MiniSize): string {
+  if (size === 'custom') return CUSTOM_SIZE_NAME;
+  const { realHeight, typical } = HEIGHT_SLOTS[size];
+  return `${slotName(size)} · ${realHeight} · ${typical}`;
+}
+
+// The geometry the slot resolves to, for the select's title. Derived from the
+// table so it cannot drift from what prints.
+export function slotGeometryLabel(size: MiniSize): string {
+  if (size === 'custom') return 'Base width and figure height set per row';
+  return `${resolveBaseWidthMm({ heightSlot: size })} mm base · ${HEIGHT_SLOTS[size].figureHeightMm} mm tall`;
 }
 
 export const DEFAULT_CUSTOM_WIDTH_MM = 30;
