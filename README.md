@@ -28,22 +28,23 @@ with the height you pick, since it is what sets the base width.
 
 | Name          | Creature | Typical                    | Figure | Base  |
 | ------------- | -------- | -------------------------- | ------ | ----- |
-| Tiny          | 0.6 m    | familiar, imp, hawk        | 11 mm  | 20 mm |
-| Small         | 0.95 m   | halfling, gnome, wolf      | 17 mm  | 25 mm |
-| Medium, short | 1.3 m    | dwarf                      | 23 mm  | 25 mm |
-| Medium        | 1.7 m    | human, elf, orc            | 30 mm  | 25 mm |
-| Medium, tall  | 2.1 m    | bugbear, goliath           | 37 mm  | 25 mm |
-| Large         | 2.7 m    | ogre, troll, owlbear       | 48 mm  | 37 mm |
-| Large, tall   | 4 m      | hill giant, young dragon   | 69 mm  | 37 mm |
+| Tiny          | 0.6 m    | familiar, imp, hawk        | 12 mm  | 20 mm |
+| Small         | 0.95 m   | halfling, gnome, wolf      | 20 mm  | 25 mm |
+| Medium, short | 1.3 m    | dwarf                      | 27 mm  | 25 mm |
+| Medium        | 1.7 m    | human, elf, orc            | 35 mm  | 25 mm |
+| Medium, tall  | 2.1 m    | bugbear, goliath           | 43 mm  | 25 mm |
+| Large         | 2.7 m    | ogre, troll, owlbear       | 56 mm  | 37 mm |
+| Large, tall   | 4 m      | hill giant, young dragon   | 82 mm  | 37 mm |
 | Huge          | 6 m      | giant, adult dragon        | 95 mm  | 50 mm |
 | Gargantuan    | 10 m+    | ancient dragon, kraken     | 111 mm | 75 mm |
 
 The dropdown shows the first three columns; the millimetres are in the tooltip, since they are what
 the choice resolves to rather than the choice itself.
 
-The scale is a 1.7 m human printing 30 mm — about 17.5 mm of paper per metre of creature — held
-linear up to the tall Large row. The top two rows bend, because the paper runs out before the
-creatures do: at that scale a 10 m dragon is a 170 mm figure needing a 363 mm sheet. Huge and
+The scale is a 1.7 m human printing 35 mm — about 20.6 mm of paper per metre of creature — held
+linear up to the tall Large row. It matches Printable Heroes, whose paper minis print a human at
+about 35 mm, so figures from both stand eye to eye. The top two rows bend, because the paper runs
+out before the creatures do: at that scale a 10 m dragon is a 206 mm figure needing a 436 mm sheet. Huge and
 Gargantuan are cut short enough to leave room for a wider figure margin, so 6 m and 10 m+ print only
 17% apart.
 

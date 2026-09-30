@@ -34,13 +34,13 @@ the key: nine slots chosen by height instead of six chosen by the combat grid.
 
 | Slot | Real height | Typical | Category | Base | Figure |
 | --- | --- | --- | --- | --- | --- |
-| Tiny | 0.6 m (~2') | familiar, imp, hawk | Tiny | 20 mm | 11 mm |
-| Small | 0.95 m (~3'2") | halfling, gnome, wolf | Small | 25 mm | 17 mm |
-| Medium, short | 1.3 m (4'3") | dwarf | Medium | 25 mm | 23 mm |
-| Medium | 1.7 m (5'8") | human, elf, orc | Medium | 25 mm | 30 mm |
-| Medium, tall | 2.1 m (~7') | bugbear, goliath | Medium | 25 mm | 37 mm |
-| Large | 2.7 m (~9') | ogre, troll, owlbear | Large | 37 mm | 48 mm |
-| Large, tall | 4 m (~13') | hill giant, young dragon | Large | 37 mm | 69 mm |
+| Tiny | 0.6 m (~2') | familiar, imp, hawk | Tiny | 20 mm | 12 mm |
+| Small | 0.95 m (~3'2") | halfling, gnome, wolf | Small | 25 mm | 20 mm |
+| Medium, short | 1.3 m (4'3") | dwarf | Medium | 25 mm | 27 mm |
+| Medium | 1.7 m (5'8") | human, elf, orc | Medium | 25 mm | 35 mm |
+| Medium, tall | 2.1 m (~7') | bugbear, goliath | Medium | 25 mm | 43 mm |
+| Large | 2.7 m (~9') | ogre, troll, owlbear | Large | 37 mm | 56 mm |
+| Large, tall | 4 m (~13') | hill giant, young dragon | Large | 37 mm | 82 mm |
 | Huge | 6 m (~20') | giant, adult dragon | Huge | 50 mm | 95 mm |
 | Gargantuan | 10 m+ (32'+) | ancient dragon, kraken | Gargantuan | 75 mm | 111 mm |
 
@@ -49,10 +49,10 @@ the argument above is in feet, while the interface states metres and shows only 
 creature's height and its examples. The millimetres a slot resolves to are the consequence of the
 choice rather than the choice itself, so they sit in the select's tooltip.
 
-Anchored on a 1.7 m (5'8") human printing 30 mm, which is what the six-row table's Medium printed, so a
-Medium row standing at its full height is untouched. Artwork wide enough to hit the width cap is not:
-the cap moved with the table, and the Consequences section below says how far. That works out to
-5.3 mm per foot, held linear from Tiny up to the tall Large slot. Halfling and gnome
+Anchored on a 1.7 m (5'8") human printing 35 mm, which is the scale Printable Heroes prints its own
+paper minis at. Measured on a sheet from their site, their humans stand 35 to 37 mm including the
+ground drawn under their feet, and their bugbear and ogre land within a millimetre of the Medium, tall and Large rows here.
+That works out to about 6.3 mm per foot, held linear from Tiny up to the tall Large slot. Halfling and gnome
 share a slot deliberately: 3'0" against 3'4" is 12%, invisible once cut out of paper. The dwarf gets
 his own, because 1.3 m against 1.7 m is 34% and reads instantly.
 
@@ -64,7 +64,7 @@ key into them moved.
 
 **The top two rows are cut by the page, with headroom.** An unfolded mini costs
 `2h + 4×margin + 2×tab`, so at the default 2 mm margin the tallest figure A4 can hold is about
-126 mm and Letter about 117 mm. A 40-ft ancient dragon at true scale wants 212 mm and a 448 mm
+126 mm and Letter about 117 mm. A 40-ft ancient dragon at true scale wants 251 mm and a 526 mm
 sheet. So the top of the table comes from the paper rather than from the creature.
 
 Cutting those rows *to* the ceiling is the trap, and the first version of this table fell into it at
@@ -74,34 +74,34 @@ Gargantuan tuned to sit 1 mm inside Letter therefore left the sheet at a 2.25 mm
 six-row table's 90 mm row had survived roughly 15 mm. Losing the largest mini to a cutting preference
 is worse than printing it short.
 
-Gargantuan is therefore cut to 111 mm rather than the 170 mm the linear scale asks for, which leaves
+Gargantuan is therefore cut to 111 mm rather than the 206 mm the linear scale asks for, which leaves
 it printable through a 5 mm margin on Letter, the smaller of the two pages, and through 9 mm on A4.
 
-Huge is cut to 95 mm for a different reason, and the distinction matters to anyone re-deriving the
-table: its own linear 106 mm is not a page problem at all — it survives a 7.75 mm margin on Letter
-and 12 mm on A4. What rules it out is Gargantuan. At 106 against a paper-bound 111 the top two rows
-print 5% apart, which on cut paper is no difference at all, and a Huge that reads the same as a
-Gargantuan is worse than one printed short. 95 buys back a 17% step. So the price is resolution at
-the top: above Large the table signals rank rather than height. Below Large nothing moved.
+Huge is paper-bound too: its own linear 124 mm does not fit Letter at any margin. It is not cut
+just under Gargantuan, though. Two rows 5% apart are no difference at all on cut paper, and a Huge
+that reads the same as a Gargantuan is worse than one printed short. At 95 mm it keeps a step of
+about 16% to the tall Large row below and 17% to Gargantuan above. So the price is resolution at
+the top: above the tall Large row the table signals rank rather than height, and 4 m, 6 m and
+10 m+ print at 82, 95 and 111 mm.
 
 Whether either row stands at all is a separate question and still open: a figure twice the height of
 its 50 mm base, on 0.3 mm photo paper, may not. If it does not, the limit is structural rather than
 typographic and wants a printed sheet, not an argument.
 
 **The bottom end is floored by the tab, and the tab yields.** `TAB_HEIGHT_MM` is 8 mm, and a Tiny at
-11 mm would be only 1.4× its own tab — the "strip of paper with a dot on top" that #20's story 10 was
+12 mm would be only 1.5× its own tab — the "strip of paper with a dot on top" that #20's story 10 was
 written against, and the reason the six-row table inflated Tiny to 24 mm. The two ways out were to
 lift Tiny and Small above true scale again, or to make the tab proportional at the small end. Lifting
 them re-compresses exactly the halfling-versus-dwarf gap this grading exists to open, so the tab
 gives way instead: it is capped at 40% of the figure standing on it and floored at 4 mm, below which
 the fold has nothing to grip. Any figure printing 20 mm or taller keeps the full 8 mm, which at
-nominal height is every slot from the short Medium up. At their own heights Tiny and Small stand
+nominal height is every slot from Small up. At their own heights Tiny and Small stand
 2.5× their tabs. This wants confirming against a printed sheet rather than in the abstract.
 
 Both of those are statements about a figure's *printed* height, because that is what the tab is
 measured from rather than the slot's nominal one — a figure scaled down by the width cap gets the tab
-it actually stands on. So wide artwork moves a slot down the rule: a Medium on 4:1 prints 11.25 mm
-and takes a 4.5 mm tab, not the 8 mm its slot would suggest. And below about 10 mm of printed figure
+it actually stands on. So wide artwork moves a slot down the rule: a Medium on 4:1 prints 13.125 mm
+and takes a 5.25 mm tab, not the 8 mm its slot would suggest. And below about 10 mm of printed figure
 the 4 mm floor takes over from the proportion entirely, so a heavily capped Tiny can end up no taller
 than its own tab. The floor wins there on purpose: the grip the fold needs is a fixed physical
 quantity and does not scale away. The number badge is told how much
@@ -117,11 +117,11 @@ do, but then nothing would set a base width directly, and that is the one job cu
 
 That cap is measured against the height the slot prints at — `MAX_WIDTH_TO_SLOT_HEIGHT`, 1.5 — and not against its base width, which is what it was when the category fixed the height. A base-width cap carries no slot term, because every slot of a category shares one base, so a capped figure's height collapsed to the same millimetres for every slot of its category: on artwork twice as wide as it is tall, the dwarf and the bugbear printed identically again, which is the defect this grading exists to remove. Against the slot's height the scale-down is proportional and the slots stay ordered at every aspect ratio.
 
-It bounds width, not the printed width-to-height ratio, and is not meant to bound that: the artwork's own proportions survive the scale-down, which is what keeps the figure uncropped. A 4:1 Medium prints 45 × 11.25 mm and is still 4:1.
+It bounds width, not the printed width-to-height ratio, and is not meant to bound that: the artwork's own proportions survive the scale-down, which is what keeps the figure uncropped. A 4:1 Medium prints 52.5 × 13.125 mm and is still 4:1.
 
 1.5 is a judgement about how far a figure may spread, not a number the paper forces — A4 would hold about 1.67 at the tallest slot. It is chosen to sit close to the 1.67 the old base-width cap happened to give a Medium, so the common case barely moves.
 
-A capped figure still gives up more height than the six-row table's cap did, because the figures grew and the bases did not: a Medium on 3:1 artwork prints 15 mm rather than its slot's 30 mm, and its cap engages from 1.5:1 where the old one waited until 1.67:1. The loss is proportional, so the slot ordering a user picked by is still what they get — but a slot's quoted height is what an uncapped figure prints, not a promise.
+A capped figure still gives up more height than the six-row table's cap did, because the figures grew and the bases did not: a Medium on 3:1 artwork prints 17.5 mm rather than its slot's 35 mm, and its cap engages from 1.5:1 where the old one waited until 1.67:1. The loss is proportional, so the slot ordering a user picked by is still what they get — but a slot's quoted height is what an uncapped figure prints, not a promise.
 
 A figure may be wider than its base, so a mini reserves the greater of figure width and base width, plus its margins. That could not happen before.
 
@@ -130,5 +130,12 @@ Both models shipped behind a switch until they could be compared on real artwork
 #24 regraded the table: the six-row version gave a dwarf and a bugbear, both Medium, the same
 printed height, which was a limit of the table rather than of height-driven sizing. Height is now
 the input and the category is derived, as above.
+
+The anchor then moved from 30 mm to 35 mm. The 30 mm was carried over from the six-row table's
+Medium, which kept an existing row unchanged but had no measurement behind it; printed next to
+Printable Heroes' own minis, ours stood a head shorter. Every linear row grew by the same 7/6, and
+Huge and Gargantuan stayed where the paper holds them. It costs paper: at the default 2 mm margin a
+Medium on artwork twice as tall as it is wide unfolds to 94 mm, so A4 fits two rows where it fit
+three, 12 of them per sheet instead of 18.
 
 Measuring height from the artwork's bounding box means a raised weapon eats into the figure's height, printing that mini shorter. Accepted for now, and revisited if real artwork makes it common.
