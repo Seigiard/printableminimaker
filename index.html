@@ -21,7 +21,7 @@
           <h1>Paper Mini Generator</h1>
           <a class="repo-link" href="https://github.com/Seigiard/printableminimaker" target="_blank" rel="noopener noreferrer">View on GitHub ↗</a>
         </div>
-        <p class="sub">Upload artwork, pick a size, get a print-ready PDF of foldable D&amp;D paper miniatures.</p>
+        <p class="sub">Upload artwork, pick a height, get a print-ready PDF of foldable D&amp;D paper miniatures.</p>
       </header>
 
       <!-- Settings only — the primary action lives in the sticky bar below. -->
@@ -75,21 +75,21 @@
         <label class="bulk-size">
           Set all to
           <select id="bulk-size">
-            <option value="" selected disabled>size…</option>
+            <option value="" selected disabled>height…</option>
           </select>
         </label>
       </div>
 
       <div id="rows-header" class="rows-header" hidden aria-hidden="true">
         <span class="col-image">Image</span>
-        <span class="col-size">Size</span>
+        <span class="col-size">Height</span>
         <span class="col-copies">Copies</span>
         <span class="col-spacer"></span>
       </div>
 
       <section id="rows" class="rows" aria-label="Mini entries"></section>
 
-      <p class="hint">A size category sets how tall a figure prints, and its width follows the artwork — except very wide artwork, which is scaled down whole and prints a little short. Normalize artwork trims transparent or flat-colour margins. Details close to the background colour may also be trimmed. Turn it off to print the original artwork. A ! badge means the artwork could not be trimmed or the mini is too large.</p>
+      <p class="hint">A height slot sets how tall a figure prints, and its width follows the artwork — except very wide artwork, which is scaled down whole and prints a little short. Normalize artwork trims transparent or flat-colour margins. Details close to the background colour may also be trimmed. Turn it off to print the original artwork. The slot also carries a size category, which sets the base width. A ! badge means the artwork could not be trimmed or the mini is too large.</p>
     </main>
 
     <!-- Sticky action bar: live scale readout + the terminal action. -->

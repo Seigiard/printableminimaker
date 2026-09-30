@@ -2,8 +2,11 @@ import { generatePDF, buildFilename } from './pdf';
 import { DEFAULT_FIGURE_MARGIN_MM, packEntries, type PageSizeKey } from './packing';
 import { prepareArtwork } from './artwork';
 import { normalizeArtwork } from './normalization';
-import { DEFAULT_CUSTOM_WIDTH_MM, DEFAULT_CUSTOM_HEIGHT_MM, SIZE_DIMENSIONS_MM, SIZE_NAMES, sizeLabel } from './sizes';
-import type { PreparedArtwork, DnDPresetSize, DnDSize, Entry } from './types';
+import {
+  DEFAULT_CUSTOM_HEIGHT_MM, DEFAULT_CUSTOM_WIDTH_MM, DEFAULT_HEIGHT_SLOT,
+  HEIGHT_SLOT_ORDER, slotGeometryLabel, slotLabel,
+} from './sizes';
+import type { PreparedArtwork, HeightSlot, MiniSize, Entry } from './types';
 
 const rows: Entry[] = [];
 let generating = false;
@@ -105,7 +108,7 @@ function ingestFiles(files: FileList | File[]) {
   }
   clearStatus();
   for (const file of list) {
-    const entry: Entry = { image: null, artwork: null, size: 'medium', count: 1 };
+    const entry: Entry = { image: null, artwork: null, heightSlot: DEFAULT_HEIGHT_SLOT, count: 1 };
     rows.push(entry);
     void setImage(entry, file);
   }
@@ -223,24 +226,22 @@ function buildRow(entry: Entry, index: number): HTMLElement {
   fileWrap.appendChild(name);
   el.appendChild(fileWrap);
 
-  // Size column — dropdown and independent custom dimensions.
+  // Height column — dropdown and independent custom dimensions.
   const sizeWrap = document.createElement('div');
   sizeWrap.className = 'field size-wrap';
-  sizeWrap.append(fieldLabel('Size'));
+  sizeWrap.append(fieldLabel('Height'));
 
   const sizeSel = document.createElement('select');
-  for (const val of Object.keys(SIZE_NAMES) as DnDSize[]) {
-    const opt = document.createElement('option');
-    opt.value = val;
-    opt.textContent = sizeLabel(val);
-    if (val === entry.size) opt.selected = true;
-    sizeSel.appendChild(opt);
-  }
+  appendSlotOptions(sizeSel, { custom: true });
+  sizeSel.value = entry.heightSlot;
+  // Option titles are unreliable in a native select, so the select itself
+  // carries what the current choice resolves to.
+  sizeSel.title = slotGeometryLabel(entry.heightSlot);
   sizeWrap.appendChild(sizeSel);
 
   const customWrap = document.createElement('div');
   customWrap.className = 'custom-width-wrap';
-  customWrap.style.display = entry.size === 'custom' ? '' : 'none';
+  customWrap.style.display = entry.heightSlot === 'custom' ? '' : 'none';
   const customInput = document.createElement('input');
   customInput.type = 'number';
   customInput.min = '1';
@@ -262,7 +263,7 @@ function buildRow(entry: Entry, index: number): HTMLElement {
   const heightWrap = document.createElement('label');
   heightWrap.className = 'custom-height';
   heightWrap.textContent = 'Figure height (mm)';
-  heightWrap.hidden = entry.size !== 'custom';
+  heightWrap.hidden = entry.heightSlot !== 'custom';
   const heightInput = document.createElement('input');
   heightInput.type = 'number';
   heightInput.min = '1';
@@ -277,8 +278,9 @@ function buildRow(entry: Entry, index: number): HTMLElement {
   sizeWrap.appendChild(heightWrap);
 
   sizeSel.addEventListener('change', () => {
-    entry.size = sizeSel.value as DnDSize;
-    if (entry.size === 'custom') {
+    entry.heightSlot = sizeSel.value as MiniSize;
+    sizeSel.title = slotGeometryLabel(entry.heightSlot);
+    if (entry.heightSlot === 'custom') {
       if (entry.customWidthMm == null || entry.customWidthMm <= 0) {
         entry.customWidthMm = DEFAULT_CUSTOM_WIDTH_MM;
         customInput.value = String(DEFAULT_CUSTOM_WIDTH_MM);
@@ -291,7 +293,7 @@ function buildRow(entry: Entry, index: number): HTMLElement {
     } else {
       customWrap.style.display = 'none';
     }
-    heightWrap.hidden = entry.size !== 'custom';
+    heightWrap.hidden = entry.heightSlot !== 'custom';
     updateCount();
   });
   el.appendChild(sizeWrap);
@@ -348,6 +350,20 @@ function buildRow(entry: Entry, index: number): HTMLElement {
 
   el.dataset.index = String(index);
   return el;
+}
+
+// Both size dropdowns list the slots flat, shortest first. The option names the
+// creature's own height, which is what the user recognises; the millimetres it
+// resolves to are a consequence and live in the select's tooltip.
+function appendSlotOptions(select: HTMLSelectElement, { custom }: { custom: boolean }) {
+  const values: MiniSize[] = custom ? [...HEIGHT_SLOT_ORDER, 'custom'] : [...HEIGHT_SLOT_ORDER];
+  for (const value of values) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = slotLabel(value);
+    opt.title = slotGeometryLabel(value);
+    select.appendChild(opt);
+  }
 }
 
 function fieldLabel(text: string): HTMLElement {
@@ -481,26 +497,20 @@ fileInput.addEventListener('change', () => {
 });
 
 addBlankBtn.addEventListener('click', () => {
-  rows.push({ image: null, artwork: null, size: 'medium', count: 1 });
+  rows.push({ image: null, artwork: null, heightSlot: DEFAULT_HEIGHT_SLOT, count: 1 });
   render();
 });
 
-// --- Bulk "set all to size" ---
+// --- Bulk "set all to height" ---
 
+// index.html declares the selected placeholder; this only appends to it.
 function renderBulkSizes() {
-  while (bulkSizeSel.options.length > 1) bulkSizeSel.remove(1);
-  for (const val of Object.keys(SIZE_NAMES) as DnDSize[]) {
-    if (val === 'custom') continue; // custom needs per-row dimensions
-    const opt = document.createElement('option');
-    opt.value = val;
-    opt.textContent = sizeLabel(val);
-    bulkSizeSel.appendChild(opt);
-  }
+  appendSlotOptions(bulkSizeSel, { custom: false }); // custom needs per-row dimensions
 }
 bulkSizeSel.addEventListener('change', () => {
-  const size = bulkSizeSel.value as DnDPresetSize;
-  if (!SIZE_DIMENSIONS_MM[size]) return;
-  for (const entry of rows) entry.size = size;
+  const slot = bulkSizeSel.value as HeightSlot;
+  if (!HEIGHT_SLOT_ORDER.includes(slot)) return;
+  for (const entry of rows) entry.heightSlot = slot;
   bulkSizeSel.value = '';
   render();
 });

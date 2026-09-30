@@ -143,11 +143,11 @@ const artwork = {
   bytes: Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLttAAAAABJRU5ErkJggg==', 'base64')),
   format: 'png' as const, width: 1, height: 1,
 };
-const entry: Entry = { image: null, artwork, size: 'tiny', count: 1 };
+const entry: Entry = { image: null, artwork, heightSlot: 'tiny', count: 1 };
 
-// 3x2 px: at Tiny's 24 mm figure height the figure prints 36 mm wide over a
-// 20 mm base, overhanging it and staying under the width cap.
-const wide: Entry = { ...entry, artwork: {
+// 3x2 px at Medium: the figure prints 45 mm wide at its 30 mm height, over a
+// 25 mm base, overhanging it and staying under the width cap.
+const wide: Entry = { ...entry, heightSlot: 'medium', artwork: {
   bytes: Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAASFvFNAAAADklEQVR4nGNwgAEGOAsALRQEgQjZfUEAAAAASUVORK5CYII=', 'base64')),
   format: 'png', width: 3, height: 2,
 } };
@@ -198,7 +198,7 @@ await t('a sliver of Tiny artwork keeps both badges at the right of the base', a
 for (const marginMm of [0, 2, 8]) {
   await t(`badges stay on the sheet's minis with a ${marginMm} mm margin and leave layout unchanged`, async () => {
     // #given
-    const entries: Entry[] = [{ ...entry, size: 'gargantuan' }, entry];
+    const entries: Entry[] = [{ ...entry, heightSlot: 'large-tall' }, entry];
     const opts = { pageSize: 'a4', marginMm } as const;
     // #when
     const numbered = await read(await generatePDF(entries, { ...opts, numberDuplicates: true }));
@@ -214,10 +214,14 @@ for (const marginMm of [0, 2, 8]) {
         mini.back.badge!.bottom > mini.back.image.top,
         mini.back.badge!.top < mini.extent.top,
       ]),
+      // A Tiny's tab shrinks with its figure, so the badge clamp bites hardest
+      // at 0 mm — where nothing else pins how small the digit may get.
+      readable: numbered.texts.map(text => text.size >= 6),
       plainLabels: plain.texts,
     }, {
       pages: plain.pages, layout: plain.shapes,
-      placement: [[true, true, true, true], [true, true, true, true]], plainLabels: [],
+      placement: [[true, true, true, true], [true, true, true, true]],
+      readable: [true, true, true, true], plainLabels: [],
     });
   });
 }
@@ -234,7 +238,7 @@ await t('each copy prints its own number on both faces', async () => {
   ]);
 });
 
-await t('a size category prints one figure height for artworks of different proportions', async () => {
+await t('a height slot prints one figure height for artworks of different proportions', async () => {
   // #given  a square and a 1x100 sliver, both Tiny
   const sliver: Entry = { ...entry, artwork: {
     bytes: Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAABkCAYAAABHLFpgAAAAEklEQVR4nGP4z8Dwn2GUGEkEAJoCxzl9ksz2AAAAAElFTkSuQmCC', 'base64')),
@@ -244,10 +248,10 @@ await t('a size category prints one figure height for artworks of different prop
   const { minis } = await read(await generatePDF([entry, sliver], {
     pageSize: 'a4', numberDuplicates: false, marginMm: 0,
   }));
-  // #then  Tiny is 24 mm tall in ADR-0002's table, front and back, for both entries
+  // #then  Tiny is 11 mm tall in ADR-0002's graded table, front and back, both entries
   assert.deepEqual(
     minis.flatMap(mini => [mini.front.image, mini.back.image]).map(box => asMm(box.top - box.bottom)),
-    [24, 24, 24, 24],
+    [11, 11, 11, 11],
   );
 });
 
@@ -256,7 +260,7 @@ await t('a tab keeps its base width while the figure overhangs it', async () => 
   const { minis } = await read(await generatePDF([wide], {
     pageSize: 'a4', numberDuplicates: true, marginMm: 0,
   }));
-  // #then  Tiny's 20 mm base, with the figure's 36 mm spread centred over it
+  // #then  Medium's 25 mm base, with the figure's 45 mm spread centred over it
   const [mini] = minis;
   assert.deepEqual({
     bottomTab: widthMm(mini.bottomTab), topTab: widthMm(mini.topTab),
@@ -269,7 +273,7 @@ await t('a tab keeps its base width while the figure overhangs it', async () => 
     badgeOverBase: [mini.front.badge!, mini.back.badge!].map(badge =>
       badge.left > mini.bottomTab.left && badge.right < mini.bottomTab.right),
   }, {
-    bottomTab: 20, topTab: 20, figure: 36, overhangLeft: 8, overhangRight: 8,
+    bottomTab: 25, topTab: 25, figure: 45, overhangLeft: 10, overhangRight: 10,
     tabsAligned: true, badgeOverBase: [true, true],
   });
 });
@@ -286,13 +290,13 @@ await t('the fold line spans the reserved column, overhang and margins included'
     crossesFigure: mini.fold.left < mini.front.image.left && mini.fold.right > mini.front.image.right,
     atVerticalCentre: asMm(mini.fold.bottom - mini.extent.bottom)
       === asMm(mini.extent.top - mini.fold.top),
-  }, { fold: 40, tab: 20, figure: 36, crossesFigure: true, atVerticalCentre: true });
+  }, { fold: 49, tab: 25, figure: 45, crossesFigure: true, atVerticalCentre: true });
 });
 
 await t('the badge marks the base, a fixed step inside it', async () => {
   // #when  square art at Medium prints 30 mm wide, so the 25 mm base sits
   // 2.5 mm inside the figure and 4.5 mm inside the mini's own left edge
-  const { minis } = await read(await generatePDF([{ ...entry, size: 'medium' }], {
+  const { minis } = await read(await generatePDF([{ ...entry, heightSlot: 'medium' }], {
     pageSize: 'a4', numberDuplicates: true, marginMm: 2,
   }));
   // #then
