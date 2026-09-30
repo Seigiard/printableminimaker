@@ -26,6 +26,10 @@ const bulkSizeSel = document.getElementById('bulk-size') as HTMLSelectElement;
 const countReadout = document.getElementById('count-readout') as HTMLElement;
 const statusEl = document.getElementById('status') as HTMLElement;
 const dragOverlay = document.getElementById('drag-overlay') as HTMLElement;
+const previewEl = document.getElementById('preview') as HTMLElement;
+const previewBtn = document.getElementById('preview-btn') as HTMLButtonElement;
+const previewStale = document.getElementById('preview-stale') as HTMLElement;
+const previewFrame = document.getElementById('preview-frame') as HTMLIFrameElement;
 
 const ACCEPTED = ['image/png', 'image/jpeg', 'image/webp'];
 
@@ -392,6 +396,7 @@ function render() {
   dropzone.classList.toggle('slim', hasRows);
   rowsToolbar.hidden = !hasRows;
   rowsHeader.hidden = !hasRows;
+  previewEl.hidden = !hasRows;
 
   rowsEl.innerHTML = '';
   rowEls = [];
@@ -407,6 +412,9 @@ function render() {
 // Recomputes the live "N minis → M pages" readout, flags oversized rows, and
 // toggles the Generate button — all from the pure packing module.
 function updateCount() {
+  changeSeq++;
+  previewStale.hidden = !previewUrl;
+
   const result = packEntries(rows, { pageSize, numberDuplicates, marginMm });
 
   const oversized = new Set(result.oversizedEntryIndices);
@@ -445,7 +453,18 @@ function updateCount() {
     clearStatus();
   }
 
-  generateBtn.disabled = generating || result.miniCount === 0 || !figureMarginEl.validity.valid;
+  packedMiniCount = result.miniCount;
+  syncActionButtons();
+}
+
+let packedMiniCount = 0;
+
+// Kept apart from updateCount() so starting or finishing a generation does not
+// count as a change and mark a fresh preview stale.
+function syncActionButtons() {
+  const disabled = generating || packedMiniCount === 0 || !figureMarginEl.validity.valid;
+  generateBtn.disabled = disabled;
+  previewBtn.disabled = disabled;
 }
 
 // --- Settings wiring ---
@@ -549,15 +568,35 @@ window.addEventListener('drop', (e) => {
 
 // --- Generate ---
 
-generateBtn.addEventListener('click', async () => {
+// Bumped on every input change, so a preview can tell whether the list or the
+// settings moved while it was generating.
+let changeSeq = 0;
+let previewUrl: string | null = null;
+
+async function withGeneratedPdf(button: HTMLButtonElement, busyLabel: string, use: (blob: Blob) => void) {
   if (generating) return;
   generating = true;
-  const original = generateBtn.textContent;
-  generateBtn.disabled = true;
-  generateBtn.textContent = 'Generating…';
+  const original = button.textContent;
+  button.textContent = busyLabel;
+  syncActionButtons();
   try {
     const bytes = await generatePDF(rows, { pageSize, numberDuplicates, marginMm });
-    const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });
+    use(new Blob([bytes as BlobPart], { type: 'application/pdf' }));
+  } catch (err) {
+    console.error(err);
+    showStatus(
+      'Couldn’t generate the PDF: ' + (err instanceof Error ? err.message : String(err)),
+      'error',
+    );
+  } finally {
+    generating = false;
+    button.textContent = original;
+    syncActionButtons();
+  }
+}
+
+generateBtn.addEventListener('click', () => {
+  void withGeneratedPdf(generateBtn, 'Generating…', (blob) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -567,17 +606,19 @@ generateBtn.addEventListener('click', async () => {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
     showStatus('PDF downloaded.', 'info');
-  } catch (err) {
-    console.error(err);
-    showStatus(
-      'Couldn’t generate the PDF: ' + (err instanceof Error ? err.message : String(err)),
-      'error',
-    );
-  } finally {
-    generating = false;
-    generateBtn.textContent = original;
-    updateCount();
-  }
+  });
+});
+
+previewBtn.addEventListener('click', async () => {
+  const seq = changeSeq;
+  await withGeneratedPdf(previewBtn, 'Rendering…', (blob) => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    previewUrl = URL.createObjectURL(blob);
+    previewFrame.src = previewUrl;
+    previewFrame.hidden = false;
+    previewStale.hidden = seq === changeSeq;
+  });
+  if (previewUrl) previewBtn.textContent = 'Refresh preview';
 });
 
 loadSettings();

@@ -319,6 +319,32 @@ button {
 .row .remove { color: var(--danger); }
 .row .remove:hover { background: #fbe9e9; }
 
+/* --- PDF preview --- */
+
+.preview { margin-top: 1rem; }
+.preview-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+.preview-stale {
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--warn-border);
+  border-radius: 6px;
+  background: var(--warn-bg);
+  font-size: 0.85rem;
+}
+.preview-frame {
+  display: block;
+  width: 100%;
+  height: 80vh;
+  margin-top: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: white;
+}
+
 .hint { color: var(--muted); font-size: 0.85rem; margin-top: 1.5rem; }
 
 /* --- Sticky action bar --- */
