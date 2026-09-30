@@ -1,5 +1,5 @@
 import type { Entry, MiniSize, PackingEntry } from './types';
-import { fitFigure, hasPackableDimensions, resolveSizeDimensionsMm } from './sizes.ts';
+import { fitFigure, hasPackableDimensions, resolveSizeDimensionsMm, resolveTabHeightMm } from './sizes.ts';
 
 // Page and layout constants. These live here (not in pdf.ts) so the packing
 // math is a pure, DOM/PDF-free module that both the live page-count estimate
@@ -12,37 +12,11 @@ export const PAGE_SIZES_MM = {
 export type PageSizeKey = keyof typeof PAGE_SIZES_MM;
 
 export const MARGIN_MM = 10;
-export const GAP_MM = 2;
+// Wide enough that two neighbours' cut marks, each reaching CUT_MARK_ARM_MM
+// out from its own edge, never touch and read as one mark.
+export const GAP_MM = 4;
+export const CUT_MARK_ARM_MM = 1.5;
 export const DEFAULT_FIGURE_MARGIN_MM = 2;
-
-// The tab a figure gets once it is tall enough to carry one, and the floor
-// below which the fold has nothing to grip.
-export const TAB_HEIGHT_MM = 8;
-export const MIN_TAB_HEIGHT_MM = 4;
-
-// ADR-0002, the tab floor: a tab is this share of the figure standing on it,
-// until MIN_TAB_HEIGHT_MM takes over. Below a 10 mm printed figure the floor
-// wins and the proportion no longer holds — a wide Tiny scaled down by the width
-// cap can end up shorter than its own 4 mm tab. The grip the fold needs is a
-// fixed physical thing, so it does not scale away; the six-row table had the
-// same corner, more often, with a fixed 8 mm tab. The height slots are graded true to scale at the small end —
-// a Tiny is 12 mm — and a fixed 8 mm tab under a 12 mm figure is the "strip of
-// paper with a dot on top" #20's story 10 was written against. Shrinking the
-// tab under a short figure keeps the figure scale honest instead of inflating
-// Tiny and Small back over true scale, which would re-compress the very
-// halfling-versus-dwarf gap #24 opened.
-export const MAX_TAB_HEIGHT_RATIO = 0.4;
-
-// Measured from the figure's printed height, not its slot's nominal one, so a
-// figure scaled down by the width cap gets the tab it actually stands on. Any
-// figure printing 20 mm or taller keeps the full tab, which at nominal height is
-// every slot from Small up — but wide artwork can drop one of those
-// below 20 mm, and then it shrinks like any other short figure.
-export function tabHeightMm(figureHeightMm: number): number {
-  const proportional = figureHeightMm * MAX_TAB_HEIGHT_RATIO;
-  if (proportional >= TAB_HEIGHT_MM) return TAB_HEIGHT_MM;
-  return Math.max(proportional, MIN_TAB_HEIGHT_MM);
-}
 
 // A single placed copy of an entry, with its resolved geometry. entryIndex maps
 // back to the source entry so callers (the PDF drawer, the warning UI) can
@@ -51,12 +25,10 @@ export type PackedMini = {
   entryIndex: number;
   copyIndex: number; // 0-based copy within the entry
   heightSlot: MiniSize;
-  baseWidthMm: number; // tab footprint, fixed by the slot's size category
-  totalWidthMm: number; // the wider of figure and base, plus margins — reserved column, fold line, packing
-  tabWidthMm: number; // drawn tab outline, centred in the reserved column
-  tabOffsetXMm: number; // offset from the reserved column's left edge
-  baseOffsetXMm: number; // ditto, for the base the figure and badge sit over
-  tabHeightMm: number; // drawn tab height, shrunk under a figure too short for a full one
+  baseWidthMm: number; // the category's base, which sizes the stand and the badge
+  totalWidthMm: number; // the wider of figure and base, plus margins — the cut-out's width, and every strip's
+  baseOffsetXMm: number; // offset of the base from the reserved column's left edge
+  tabHeightMm: number; // each end strip; the floor strip under the front tab is twice this
   marginMm: number;
   imageWidthMm: number; // drawn image width; may exceed baseWidthMm
   imageHeightMm: number;
@@ -135,18 +107,15 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
     const contentWidthMm = Math.max(baseWidthMm, imageWidthMm);
     const totalWidthMm = contentWidthMm + marginMm * 2;
     const imageOffsetXMm = marginMm + (contentWidthMm - imageWidthMm) / 2;
-    // The tab keeps the base's width so a wide pose claims no more table than
-    // a narrow creature of the same category; the figure overhangs it instead.
-    const tabWidthMm = baseWidthMm;
-    // Base, tab and figure share one centring rule. These two offsets are
-    // derived here in millimetres rather than in the drawer, because the same
+    // Derived here in millimetres rather than in the drawer, because the same
     // arithmetic in points does not land on the same numbers. `drawMini` still
-    // derives the back badge's own offset, inside the flipped frame, from this
+    // derives the back badge's own offset, inside the rotated frame, from this
     // rule — change it here and change it there.
-    const tabOffsetXMm = (totalWidthMm - tabWidthMm) / 2;
     const baseOffsetXMm = marginMm + (contentWidthMm - baseWidthMm) / 2;
-    const tabHMm = tabHeightMm(imageHeightMm);
-    const totalHeightMm = imageHeightMm * 2 + marginMm * 4 + tabHMm * 2;
+    const tabHMm = resolveTabHeightMm(e);
+    // Figure on figure, a margin either side of the fold, a tab at each end and
+    // the floor strip, twice a tab, under the front one.
+    const totalHeightMm = imageHeightMm * 2 + marginMm * 2 + tabHMm * 4;
     for (let i = 0; i < e.count; i++) {
       minis.push({
         entryIndex,
@@ -154,8 +123,6 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
         heightSlot: e.heightSlot,
         baseWidthMm,
         totalWidthMm,
-        tabWidthMm,
-        tabOffsetXMm,
         baseOffsetXMm,
         tabHeightMm: tabHMm,
         marginMm,

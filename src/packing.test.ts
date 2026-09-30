@@ -1,8 +1,8 @@
 // One-off test (no framework in this project). Run with: node src/packing.test.ts
 import assert from 'node:assert/strict';
 import {
-  packMinis, tabHeightMm,
-  GAP_MM, MARGIN_MM, PAGE_SIZES_MM, TAB_HEIGHT_MM,
+  packMinis,
+  GAP_MM, MARGIN_MM, PAGE_SIZES_MM,
 } from './packing.ts';
 import { HEIGHT_SLOT_ORDER, slotGeometryLabel } from './sizes.ts';
 import type { PackingEntry as Entry } from './types.ts';
@@ -37,7 +37,7 @@ t('default margin reserves paper around both faces without shrinking the figure'
   assert.deepEqual(
     [mini.baseWidthMm, mini.imageWidthMm, mini.imageHeightMm,
       mini.totalWidthMm, mini.totalHeightMm, mini.imageOffsetXMm, mini.marginMm],
-    [25, 35, 35, 39, 94, 2, 2],
+    [25, 35, 35, 39, 124, 2, 2],
   );
 });
 
@@ -74,18 +74,14 @@ t('custom entry without a valid width is not packed', () => {
 
 // --- row grouping respects usable width/height ---
 
-t('medium squares pack 5 per row, 3 rows per A4 page', () => {
+t('medium squares at zero margin pack 4 per row, 2 rows per A4 page', () => {
   // medium = 35mm figure on a 25mm base, square art => image 35x35, reserved
-  // width 35, totalHeight = 35*2 + 8*2 = 86mm.
-  // width: 5*35 + 4*2 = 183 <= 190; 6 would be 220 > 190.
-  // height: first row 86, each more +88; 3 rows = 86+88*2 = 262 <= 277; 4th = 350 > 277.
-  const r = packMinis([entry({ count: 15 })], { pageSize: 'a4', numberDuplicates: false, marginMm: 0 });
-  assert.equal(r.pageCount, 1);
-  assert.equal(r.pages[0].rows.length, 3);
-  for (const row of r.pages[0].rows) {
-    assert.equal(row.items.length, 5);
-    assert.ok(row.widthMm <= usableW, `row width ${row.widthMm} <= ${usableW}`);
-  }
+  // width 35, totalHeight = 35*2 + four 12.5mm tabs = 120mm.
+  // width: 4*35 + 3*4 = 152 <= 190; 5 would be 191 > 190.
+  // height: 2 rows = 120+4+120 = 244 <= 277; a 3rd = 368 > 277.
+  const r = packMinis([entry({ count: 8 })], { pageSize: 'a4', numberDuplicates: false, marginMm: 0 });
+  assert.deepEqual(r.pages.map((page) => page.rows.map((row) => [row.items.length, row.widthMm])),
+    [[[4, 152], [4, 152]]]);
 });
 
 t('no row exceeds usable width and no page exceeds usable height', () => {
@@ -100,8 +96,8 @@ t('no row exceeds usable width and no page exceeds usable height', () => {
   }
 });
 
-t('16 medium squares spill onto a second page', () => {
-  const r = packMinis([entry({ count: 16 })], { pageSize: 'a4', numberDuplicates: false, marginMm: 0 });
+t('9 medium squares spill onto a second page', () => {
+  const r = packMinis([entry({ count: 9 })], { pageSize: 'a4', numberDuplicates: false, marginMm: 0 });
   assert.equal(r.pageCount, 2);
 });
 
@@ -121,7 +117,7 @@ t('mini wider than the page is reported as skipped, not silently dropped', () =>
 });
 
 t('mini taller than the page is reported as skipped', () => {
-  // custom 140mm base and 140mm figure: image 140x140, totalHeight = 140*2 + 2*4 + 16 = 304 > 277.
+  // custom 140mm base and 140mm figure: image 140x140, totalHeight = 140*2 + 2*2 + 4*70 = 564 > 277.
   const r = packMinis(
     [entry({ heightSlot: 'custom', customWidthMm: 140, customHeightMm: 140 })],
     { pageSize: 'a4', numberDuplicates: false },
@@ -143,27 +139,23 @@ t('oversized entry is skipped while a fitting entry in the same batch is placed'
 // --- gap/margin math at boundaries ---
 
 t('a row exactly filling usable width packs as one row', () => {
-  // Widths that exactly hit the boundary: a 62mm base under a 62mm figure,
-  // 3 of them: 3*62 + 2*2 = 190.
+  // Widths that exactly hit the boundary: a 44.5mm base under a short figure,
+  // 4 of them: 4*44.5 + 3*4 = 190. Landscape art is capped at 30 x 10mm, well
+  // inside the base.
   const r = packMinis(
-    [entry({ heightSlot: 'custom', customWidthMm: 62, customHeightMm: 62, count: 3 })],
+    [entry({ heightSlot: 'custom', customWidthMm: 44.5, customHeightMm: 20, count: 4, naturalWidth: 300 })],
     { pageSize: 'a4', numberDuplicates: false, marginMm: 0 },
   );
-  assert.equal(r.pages[0].rows[0].items.length, 3);
-  assert.ok(Math.abs(r.pages[0].rows[0].widthMm - 190) < 1e-9);
+  assert.deepEqual(r.pages[0].rows.map((row) => [row.items.length, row.widthMm]), [[4, 190]]);
 });
 
-t('one mm over the boundary wraps to a second row on the same page', () => {
-  // custom 62.5mm: 3*62.5 + 2*2 = 191.5 > 190 => third wraps. Use landscape art
-  // under a short figure, so the 30mm image stays well inside the base and the
-  // wrapped row still fits on the first page.
+t('half a mm over the boundary wraps to a second row on the same page', () => {
+  // custom 45mm: 4*45 + 3*4 = 192 > 190 => the fourth wraps.
   const r = packMinis(
-    [entry({ heightSlot: 'custom', customWidthMm: 62.5, customHeightMm: 20, count: 3, naturalWidth: 300, naturalHeight: 100 })],
+    [entry({ heightSlot: 'custom', customWidthMm: 45, customHeightMm: 20, count: 4, naturalWidth: 300 })],
     { pageSize: 'a4', numberDuplicates: false, marginMm: 0 },
   );
-  assert.equal(r.pageCount, 1);
-  assert.equal(r.pages[0].rows[0].items.length, 2);
-  assert.equal(r.pages[0].rows[1].items.length, 1);
+  assert.deepEqual(r.pages.map((page) => page.rows.map((row) => row.items.length)), [[3, 1]]);
 });
 
 // --- labels ---
@@ -180,14 +172,17 @@ t('no labels when numberDuplicates is off', () => {
   assert.equal(anyLabel, false);
 });
 
-t('totalHeight matches the front+back image plus that mini’s two tabs', () => {
-  const r = packMinis([entry({ heightSlot: 'medium' })], { pageSize: 'a4', numberDuplicates: false, marginMm: 0 });
-  const m = r.pages[0].rows[0].items[0];
-  assert.deepEqual([m.totalHeightMm, m.tabHeightMm],
-    [m.imageHeightMm * 2 + m.tabHeightMm * 2, TAB_HEIGHT_MM]);
+t('a Medium unfolds to both faces, two margins and four half-base tabs', () => {
+  // #given  the stand folds as _||_: a 12.5 mm tab under each face and a
+  //         25 mm floor strip, two tabs deep, under the front one
+  const entries = [entry({ heightSlot: 'medium' })];
+  // #when
+  const m = packMinis(entries, { pageSize: 'a4', numberDuplicates: false, marginMm: 2 }).pages[0].rows[0].items[0];
+  // #then  35*2 + 2*2 + 12.5*4
+  assert.deepEqual([m.totalHeightMm, m.tabHeightMm], [124, 12.5]);
 });
 
-t('2 mm margins fit 8 medium squares per A4 sheet with 2 mm gaps', () => {
+t('2 mm margins fit 8 medium squares per A4 sheet with 4 mm gaps', () => {
   // #given
   const entries = [entry({ count: 9 })];
   // #when
@@ -197,8 +192,8 @@ t('2 mm margins fit 8 medium squares per A4 sheet with 2 mm gaps', () => {
     height: page.heightMm,
     rows: page.rows.map((row) => [row.items.length, row.widthMm, row.heightMm]),
   })), [
-    { height: 190, rows: [[4, 162, 94], [4, 162, 94]] },
-    { height: 94, rows: [[1, 39, 94]] },
+    { height: 252, rows: [[4, 168, 124], [4, 168, 124]] },
+    { height: 124, rows: [[1, 39, 124]] },
   ]);
 });
 
@@ -206,9 +201,10 @@ t('margin alone can make a mini too wide or too tall for A4', () => {
   // #given
   const entries = [
     // 187 + two margins = 191 > 190 wide;
-    // 128*2 + four margins + two tabs = 256 + 8 + 16 = 280 > 277 tall
+    // 69*2 + two margins + four 34.5 tabs = 138 + 4 + 138 = 280 > 277 tall,
+    // where zero margin leaves it at 276
     entry({ heightSlot: 'custom', customWidthMm: 187, customHeightMm: 18, naturalWidth: 1000 }),
-    entry({ heightSlot: 'custom', customWidthMm: 128, customHeightMm: 128 }),
+    entry({ heightSlot: 'custom', customWidthMm: 69, customHeightMm: 69 }),
   ];
   // #when
   const result = packMinis(entries, { pageSize: 'a4', numberDuplicates: false, marginMm: 2 });
@@ -216,8 +212,9 @@ t('margin alone can make a mini too wide or too tall for A4', () => {
   assert.deepEqual([result.pageCount, result.miniCount, result.oversizedEntryIndices], [0, 0, [0, 1]]);
 });
 
-t('fractional margins keep a 2 mm gap at the row boundary and cause page overflow', () => {
-  // #given
+t('fractional margins count on both axes and push minis onto more pages', () => {
+  // #given  59 + 2*1.5 = 62 wide: two per row at 62+4+62 = 128, a third
+  //         would be 194 > 190; 59*2 + 2*1.5 + 4*29.5 = 239 tall, one row a page
   const entries = [entry({ heightSlot: 'custom', customWidthMm: 59, customHeightMm: 59, count: 7 })];
   // #when
   const result = packMinis(entries, { pageSize: 'a4', numberDuplicates: false, marginMm: 1.5 });
@@ -226,9 +223,10 @@ t('fractional margins keep a 2 mm gap at the row boundary and cause page overflo
     height: page.heightMm,
     rows: page.rows.map((row) => [row.items.length, row.widthMm, row.heightMm]),
   })), [
-    { height: 140, rows: [[3, 190, 140]] },
-    { height: 140, rows: [[3, 190, 140]] },
-    { height: 140, rows: [[1, 62, 140]] },
+    { height: 239, rows: [[2, 128, 239]] },
+    { height: 239, rows: [[2, 128, 239]] },
+    { height: 239, rows: [[2, 128, 239]] },
+    { height: 239, rows: [[1, 62, 239]] },
   ]);
 });
 
@@ -243,23 +241,23 @@ t('shared tall artwork keeps each size centred within the same margin', () => {
     mini.baseWidthMm, mini.imageWidthMm, mini.imageHeightMm,
     mini.totalWidthMm, mini.totalHeightMm, mini.imageOffsetXMm, mini.marginMm,
   ]))), [
-    [37, 28, 56, 43, 140, 7.5, 3],
-    [20, 6, 12, 26, 45.6, 10, 3],
+    [37, 28, 56, 43, 192, 7.5, 3],
+    [20, 6, 12, 26, 70, 10, 3],
   ]);
 });
 
-t('a numbered mini at zero margin centres its tab and base under the figure', () => {
+t('a numbered mini at zero margin centres its base under the figure', () => {
   // #given  square art at Medium prints 35 mm tall, overhanging its 25 mm base
   const entries = [entry({})];
   // #when
   const result = packMinis(entries, { pageSize: 'a4', numberDuplicates: true, marginMm: 0 });
   // #then
-  assert.deepEqual(result.pages, [{ heightMm: 86, rows: [{
-    widthMm: 35, heightMm: 86, items: [{
+  assert.deepEqual(result.pages, [{ heightMm: 120, rows: [{
+    widthMm: 35, heightMm: 120, items: [{
       entryIndex: 0, copyIndex: 0, heightSlot: 'medium', baseWidthMm: 25,
       imageWidthMm: 35, imageHeightMm: 35, imageOffsetXMm: 0,
-      totalWidthMm: 35, tabWidthMm: 25, tabOffsetXMm: 5, baseOffsetXMm: 5,
-      tabHeightMm: 8, totalHeightMm: 86, marginMm: 0, label: '1',
+      totalWidthMm: 35, baseOffsetXMm: 5,
+      tabHeightMm: 12.5, totalHeightMm: 120, marginMm: 0, label: '1',
     }],
   }] }]);
 });
@@ -314,23 +312,6 @@ t('a custom entry without a figure height is not packable', () => {
   assert.deepEqual([result.miniCount, result.pageCount], [0, 0]);
 });
 
-t('a tab keeps its base width while the figure overhangs it', () => {
-  // #given  wide art overhangs a Medium base, narrow art stays inside it
-  const entries = [
-    entry({ naturalWidth: 150, naturalHeight: 100 }),
-    entry({ naturalWidth: 100, naturalHeight: 350 }),
-  ];
-  // #when
-  const result = packMinis(entries, { ...sheetOpts, marginMm: 2 });
-  // #then  both tabs are the category's base width, whatever the figure does
-  assert.deepEqual(result.pages[0].rows[0].items.map((mini) => [
-    mini.tabWidthMm, mini.baseWidthMm, mini.imageWidthMm, mini.totalWidthMm,
-  ]), [
-    [25, 25, 52.5, 56.5],
-    [25, 25, 10, 29],
-  ]);
-});
-
 t('minis are placed sorted by reserved width descending', () => {
   // #given  a narrow Large figure reserves less paper than a wide Medium one
   const entries = [
@@ -344,36 +325,25 @@ t('minis are placed sorted by reserved width descending', () => {
   assert.deepEqual(widths, [...widths].sort((a, b) => b - a));
 });
 
-t('every slot stands its figure well clear of its own tab', () => {
-  // #given  identical artwork taller than it is wide, so no slot can reach the
-  //         width cap and every figure prints at its slot's own height
+// A tab is half its base, so front and back together make the footprint as
+// deep as it is wide. Huge and Gargantuan cannot have that and stay on Letter,
+// so theirs are the deepest half-millimetre tabs that keep them there through
+// a 5 mm margin: (259 - 2*95 - 2*5) / 4 = 14.75 and (259 - 2*111 - 2*5) / 4 = 6.75.
+t('a tab is half its base, until the page cuts Huge and Gargantuan short', () => {
+  // #given  artwork taller than it is wide, so no figure is capped
   const entries = HEIGHT_SLOT_ORDER.map((heightSlot) =>
     entry({ heightSlot, naturalWidth: 100, naturalHeight: 200 }));
   // #when
-  const result = packMinis(entries, { ...sheetOpts, marginMm: 2 });
-  const minis = result.pages.flatMap((page) => page.rows.flatMap((row) => row.items));
-  // #then  no slot prints #20's story 10: a strip of paper with a dot on top
-  assert.deepEqual({
-    slots: minis.length,
-    clearance: minis.every((mini) => mini.imageHeightMm >= mini.tabHeightMm * 2),
-    fullTabFrom: HEIGHT_SLOT_ORDER.filter((heightSlot) =>
-      minis.find((mini) => mini.heightSlot === heightSlot)!.tabHeightMm === TAB_HEIGHT_MM),
-  }, {
-    slots: HEIGHT_SLOT_ORDER.length,
-    clearance: true,
-    // Only Tiny is short enough to shrink its tab.
-    fullTabFrom: ['small', 'medium-short', 'medium', 'medium-tall', 'large', 'large-tall', 'huge', 'gargantuan'],
-  });
-});
-
-t('a tab never shrinks past the point where the fold has nothing to grip', () => {
-  // #given  figures from well above the full-tab threshold down to far below it
-  // #when
-  const heights = [40, 20, 19, 11, 5, 1]
-    .map((figureHeightMm) => Math.round(tabHeightMm(figureHeightMm) * 1e6) / 1e6);
-  // #then  8 mm down to ADR-0002's 4 mm floor, which is stated rather than read
-  //        back from the constant that implements it
-  assert.deepEqual(heights, [8, 8, 7.6, 4.4, 4, 4]);
+  const minis = packMinis(entries, { ...sheetOpts, marginMm: 2 })
+    .pages.flatMap((page) => page.rows.flatMap((row) => row.items));
+  // #then
+  assert.deepEqual(
+    Object.fromEntries(HEIGHT_SLOT_ORDER.map((slot) => [slot, minis.find((m) => m.heightSlot === slot)!.tabHeightMm])),
+    {
+      'tiny': 10, 'small': 12.5, 'medium-short': 12.5, 'medium': 12.5, 'medium-tall': 12.5,
+      'large': 18.5, 'large-tall': 18.5, 'huge': 14.5, 'gargantuan': 6.5,
+    },
+  );
 });
 
 t('every slot’s unfolded mini fits both supported pages at the default margin', () => {
@@ -390,9 +360,9 @@ t('every slot’s unfolded mini fits both supported pages at the default margin'
 });
 
 // ADR-0002's headroom decision: the figure margin is a setting a user raises to
-// cut more comfortably, and every extra millimetre of it costs four of height.
-// Huge and Gargantuan are cut below true scale so that raising it does not
-// silently drop the biggest minis off the sheet.
+// cut more comfortably, and every extra millimetre of it costs two of height.
+// Huge and Gargantuan are cut below true scale, and stand on shallow tabs, so
+// that raising it does not silently drop the biggest minis off the sheet.
 t('no slot is lost when the figure margin is raised to 5 mm', () => {
   // #given  artwork taller than it is wide at every slot, so nothing is capped
   const entries = HEIGHT_SLOT_ORDER.map((heightSlot) =>
@@ -403,20 +373,6 @@ t('no slot is lost when the figure margin is raised to 5 mm', () => {
   // #then
   assert.deepEqual(results.map((result) => [result.miniCount, result.skipped.length]),
     [[HEIGHT_SLOT_ORDER.length, 0], [HEIGHT_SLOT_ORDER.length, 0]]);
-});
-
-// The tab is taken from the figure's printed height, not its slot's nominal
-// one. Every other tab test sits at or under the width cap, where the two are
-// the same number, so this is the only case that tells them apart.
-t('a figure shortened by the width cap gets the tab it actually stands on', () => {
-  // #given  a Medium on artwork four times as wide as it is tall
-  const entries = [entry({ heightSlot: 'medium', naturalWidth: 400, naturalHeight: 100 })];
-  // #when
-  const mini = packMinis(entries, { ...sheetOpts, marginMm: 2 }).pages[0].rows[0].items[0];
-  // #then  13.125 mm of figure carries a 5.25 mm tab, not the 8 mm its slot would
-  //        have earned — a full tab here is the strip of paper with a dot on top
-  assert.deepEqual([mini.imageHeightMm, mini.tabHeightMm, mini.imageHeightMm >= mini.tabHeightMm * 2],
-    [13.125, 5.25, true]);
 });
 
 // The dropdown's tooltip is a promise about paper, and it reaches the user

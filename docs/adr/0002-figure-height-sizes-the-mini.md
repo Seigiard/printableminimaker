@@ -63,19 +63,22 @@ key into them moved.
 ## Where the scale bends, and why
 
 **The top two rows are cut by the page, with headroom.** An unfolded mini costs
-`2h + 4×margin + 2×tab`, so at the default 2 mm margin the tallest figure A4 can hold is about
-126 mm and Letter about 117 mm. A 40-ft ancient dragon at true scale wants 251 mm and a 526 mm
+`2h + 2×margin + 4×tab`: two faces, a margin either side of the fold, a tab under each face and a
+floor two tabs deep. The page therefore bounds figure and tab together. A 40-ft ancient dragon at true scale wants 251 mm and a 526 mm
 sheet. So the top of the table comes from the paper rather than from the creature.
 
 Cutting those rows *to* the ceiling is the trap, and the first version of this table fell into it at
 117 mm. The figure margin is a setting, not a constant: a user raises it to cut more comfortably, and
-because an unfolded mini carries four margins, every millimetre added costs four of height. A
+because an unfolded mini carries two margins, every millimetre added costs two of height. A
 Gargantuan tuned to sit 1 mm inside Letter therefore left the sheet at a 2.25 mm margin — where the
 six-row table's 90 mm row had survived roughly 15 mm. Losing the largest mini to a cutting preference
 is worse than printing it short.
 
-Gargantuan is therefore cut to 111 mm rather than the 206 mm the linear scale asks for, which leaves
-it printable through a 5 mm margin on Letter, the smaller of the two pages, and through 9 mm on A4.
+Gargantuan is therefore cut to 111 mm rather than the 206 mm the linear scale asks for. Its tab is
+cut too, to 6.5 mm where half its base would be 37.5, and Huge's to 14.5 mm where half would be 25:
+at a full half-base tab neither fits Letter at any margin. Those are the deepest half-millimetre tabs
+that keep both on Letter, the smaller of the two pages, through a 5 mm margin. The price is a
+shallow stand, 75 × 13 mm under a 111 mm Gargantuan, which wants checking on paper.
 
 Huge is paper-bound too: its own linear 124 mm does not fit Letter at any margin. It is not cut
 just under Gargantuan, though. Two rows 5% apart are no difference at all on cut paper, and a Huge
@@ -88,25 +91,13 @@ Whether either row stands at all is a separate question and still open: a figure
 its 50 mm base, on 0.3 mm photo paper, may not. If it does not, the limit is structural rather than
 typographic and wants a printed sheet, not an argument.
 
-**The bottom end is floored by the tab, and the tab yields.** `TAB_HEIGHT_MM` is 8 mm, and a Tiny at
-12 mm would be only 1.5× its own tab — the "strip of paper with a dot on top" that #20's story 10 was
-written against, and the reason the six-row table inflated Tiny to 24 mm. The two ways out were to
-lift Tiny and Small above true scale again, or to make the tab proportional at the small end. Lifting
-them re-compresses exactly the halfling-versus-dwarf gap this grading exists to open, so the tab
-gives way instead: it is capped at 40% of the figure standing on it and floored at 4 mm, below which
-the fold has nothing to grip. Any figure printing 20 mm or taller keeps the full 8 mm, which at
-nominal height is every slot from Small up. At their own heights Tiny and Small stand
-2.5× their tabs. This wants confirming against a printed sheet rather than in the abstract.
-
-Both of those are statements about a figure's *printed* height, because that is what the tab is
-measured from rather than the slot's nominal one — a figure scaled down by the width cap gets the tab
-it actually stands on. So wide artwork moves a slot down the rule: a Medium on 4:1 prints 13.125 mm
-and takes a 5.25 mm tab, not the 8 mm its slot would suggest. And below about 10 mm of printed figure
-the 4 mm floor takes over from the proportion entirely, so a heavily capped Tiny can end up no taller
-than its own tab. The floor wins there on purpose: the grip the fold needs is a fixed physical
-quantity and does not scale away. The number badge is told how much
-paper sits below the image — margin plus tab — and shrinks to stay inside it, because a Tiny at zero
-margin would otherwise hang its badge off the mini.
+**The bottom end no longer needs a tab rule.** The first version floored the bottom end with an
+8 mm tab that shrank under a short figure, to at most 40% of it and no less than 4 mm, so a 12 mm
+Tiny would not stand on a tab as tall as itself. The Printable Heroes stand replaced that tab: each
+face stands on a tab half its base deep, and a floor strip two tabs deep folds under both. The tab
+is now fixed by the base, not by the figure, and a Tiny's 10 mm tabs fold under it rather than
+standing beside it, so the proportion that rule protected no longer shows. The number badge sits
+on the back tab and shrinks to fit it, which matters at Gargantuan's 6.5 mm.
 
 **Custom keeps naming both numbers.** It could derive a base width from its height the way the slots
 do, but then nothing would set a base width directly, and that is the one job custom exists for.
@@ -139,3 +130,7 @@ Medium on artwork twice as tall as it is wide unfolds to 94 mm, so A4 fits two r
 three, 12 of them per sheet instead of 18.
 
 Measuring height from the artwork's bounding box means a raised weapon eats into the figure's height, printing that mini shorter. Accepted for now, and revisited if real artwork makes it common.
+
+The stand then changed to Printable Heroes' `_||_`: tabs half the base deep and a floor strip under
+the front one. A Medium on square artwork now unfolds to 124 mm rather than 94 mm, with 4 mm between
+minis for the cut marks, so an A4 sheet holds 8 of them.
