@@ -84,5 +84,5 @@ run wrong, or a document that would mislead an agent executing it. Finding nothi
 answer here.
 
 Do not report: style preferences, naming taste, missing abstraction layers, speculative
-extensibility, tooling this project has deliberately gone without, or a test that would only assert
-its own patch back.
+extensibility, tooling this project has deliberately gone without, or a missing test whose only
+possible assertion would restate this patch.
