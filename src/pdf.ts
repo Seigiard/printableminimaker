@@ -3,6 +3,7 @@ import {
   PDFFont,
   PDFImage,
   PDFPage,
+  PrintScaling,
   StandardFonts,
   rgb,
   pushGraphicsState,
@@ -31,6 +32,21 @@ const LIGHT_GREY = rgb(0.7, 0.7, 0.7);
 const DASH_ON_MM = 1;
 const DASH_OFF_MM = 1;
 
+// The scale check printed in each sheet's top margin. A print dialog left on
+// "Fit to page" shrinks the whole sheet by a few per cent, which no amount of
+// care in the layout can undo, so the sheet has to let the user see it happen.
+// 100 mm makes a 3% shrink a 3 mm shortfall, visible against any ruler. It sits
+// in the top margin, clear of the first row, because a printer's unprintable
+// strip is narrower at the top than at the bottom on most home printers.
+export const SCALE_BAR_MM = 100;
+const SCALE_BAR_Y_FROM_TOP_MM = 5.5;
+const SCALE_BAR_THICKNESS_MM = 0.4;
+const SCALE_TICK_MM = 1.5;
+const SCALE_MAJOR_TICK_MM = 2.5;
+const SCALE_TICK_WIDTH_MM = 0.3;
+const SCALE_TEXT_PT = 7;
+export const SCALE_BAR_NOTE = 'Must measure 100 mm. If shorter, print at Actual size (100%).';
+
 export type GenerateOptions = PackOptions;
 
 export async function generatePDF(
@@ -49,8 +65,12 @@ export async function generatePDF(
   const pdf = await PDFDocument.create();
   pdf.setTitle('Paper Minis');
   pdf.setCreator('Paper Mini Generator');
+  // A hint, not a guarantee: Acrobat opens its print dialog at actual size,
+  // while Chrome, Firefox and Preview ignore it — hence the scale bar as well.
+  pdf.catalog.getOrCreateViewerPreferences().setPrintScaling(PrintScaling.None);
 
   const font = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const noteFont = await pdf.embedFont(StandardFonts.Helvetica);
 
   // Embed each unique artwork once, keyed by its position in `valid` so packing's
   // entryIndex maps straight back to the embedded image.
@@ -83,6 +103,7 @@ export async function generatePDF(
       }
       yTopMm -= row.heightMm + GAP_MM;
     }
+    drawScaleBar(pdfPage, pageHmm, noteFont);
   }
 
   return pdf.save();
@@ -181,6 +202,40 @@ function drawMini(
     thickness: stroke,
     color: LIGHT_GREY,
     dashArray: [mm(DASH_ON_MM), mm(DASH_OFF_MM)],
+  });
+}
+
+// Filled shapes only, drawn after the minis: a stroke would read as a fold line.
+function drawScaleBar(pdfPage: PDFPage, pageHmm: number, font: PDFFont) {
+  const barY = pageHmm - SCALE_BAR_Y_FROM_TOP_MM;
+  const color = rgb(0, 0, 0);
+  pdfPage.drawRectangle({
+    x: mm(MARGIN_MM),
+    y: mm(barY - SCALE_BAR_THICKNESS_MM / 2),
+    width: mm(SCALE_BAR_MM),
+    height: mm(SCALE_BAR_THICKNESS_MM),
+    color,
+  });
+  for (let tickMm = 0; tickMm <= SCALE_BAR_MM; tickMm += 10) {
+    const length = tickMm % 50 === 0 ? SCALE_MAJOR_TICK_MM : SCALE_TICK_MM;
+    // The end ticks sit inside the bar's ends, so the bar's own length is the
+    // measurement and the ticks never add to it.
+    const x = MARGIN_MM + Math.min(Math.max(tickMm - SCALE_TICK_WIDTH_MM / 2, 0),
+      SCALE_BAR_MM - SCALE_TICK_WIDTH_MM);
+    pdfPage.drawRectangle({
+      x: mm(x),
+      y: mm(barY - length),
+      width: mm(SCALE_TICK_WIDTH_MM),
+      height: mm(length),
+      color,
+    });
+  }
+  pdfPage.drawText(SCALE_BAR_NOTE, {
+    x: mm(MARGIN_MM + SCALE_BAR_MM + 3),
+    y: mm(barY - SCALE_MAJOR_TICK_MM),
+    size: SCALE_TEXT_PT,
+    font,
+    color,
   });
 }
 

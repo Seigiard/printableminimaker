@@ -350,6 +350,7 @@ button {
 }
 .count-readout { font-size: 0.95rem; font-weight: 600; }
 .status { font-size: 0.85rem; }
+.print-note { color: var(--muted); font-size: 0.8rem; }
 .status.error { color: var(--danger); }
 .status.info { color: var(--ok); }
 

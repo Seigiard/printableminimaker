@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { PDFDocument, PDFArray, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
+import {
+  PDFDocument, PDFArray, PDFDict, PDFName, PDFRawStream, PrintScaling, decodePDFRawStream,
+} from 'pdf-lib';
 import { generatePDF } from './pdf.ts';
 import type { Entry } from './types.ts';
 
@@ -34,10 +36,13 @@ const inside = (inner: Box, outer: Box) =>
 // a shape by its position in the stream. Every shape carries the role the PDF
 // itself reveals: a stroked closed path is a tab outline, a filled one a
 // badge, a two-point stroke the fold line, and a negative CTM marks the back
-// face. Assertions name those roles.
+// face. Assertions name those roles. The scale bar is sheet furniture rather
+// than part of any mini: it is the only fill-only path and the only text set in
+// regular Helvetica, so it is read into its own list per page.
 type Role = 'tab' | 'badge' | 'fold' | 'image' | 'text';
 type Text = { label: string; size: number; direction: number; position: Point };
 type Shape = { role: Role; flipped: boolean; box: Box; text?: Text };
+type ScaleBar = { page: number; marks: Box[]; notes: Text[] };
 
 type Face = { image: Box; badge?: Box; text?: Text };
 type Mini = { bottomTab: Box; topTab: Box; fold: Box; extent: Box; front: Face; back: Face };
@@ -46,7 +51,12 @@ type Mini = { bottomTab: Box; topTab: Box; fold: Box; extent: Box; front: Face; 
 async function read(bytes: Uint8Array) {
   const pdf = await PDFDocument.load(bytes);
   const shapes: Shape[] = [];
-  for (const page of pdf.getPages()) {
+  const scaleBars: ScaleBar[] = [];
+  for (const [pageIndex, page] of pdf.getPages().entries()) {
+    const scaleBar: ScaleBar = { page: pageIndex, marks: [], notes: [] };
+    scaleBars.push(scaleBar);
+    const fonts = page.node.Resources()!.lookup(PDFName.of('Font'), PDFDict);
+    let baseFont = '';
     const contents = page.node.Contents();
     assert.ok(contents instanceof PDFArray);
     let matrix: Matrix = [...identity];
@@ -74,6 +84,11 @@ async function read(bytes: Uint8Array) {
         if (op === 'm') { path = [point(matrix, n[0], n[1])]; closed = false; }
         if (op === 'l') path.push(point(matrix, n[0], n[1]));
         if (op === 'h') closed = true;
+        if (op === 'f') {
+          scaleBar.marks.push(bounds(path));
+          path = [];
+          closed = false;
+        }
         // Painting ends a path and names it: filled and stroked is a badge,
         // stroked and closed a tab outline, a stroked segment the fold line.
         if (op === 'S' || op === 'B') {
@@ -85,18 +100,21 @@ async function read(bytes: Uint8Array) {
         if (op === 'Do') shapes.push({ role: 'image', flipped, box: bounds([
           point(matrix, 0, 0), point(matrix, 1, 0), point(matrix, 0, 1), point(matrix, 1, 1),
         ]) });
-        if (op === 'Tf') size = n[1];
+        if (op === 'Tf') {
+          size = n[1];
+          baseFont = fonts.lookup(PDFName.of(tokens[0].slice(1)), PDFDict)
+            .lookup(PDFName.of('BaseFont'), PDFName).asString();
+        }
         if (op === 'Tm') textMatrix = n as Matrix;
         if (op === 'Tj') {
           const position = point(matrix, textMatrix[4], textMatrix[5]);
-          shapes.push({
-            role: 'text', flipped, box: bounds([position]),
-            text: {
-              label: Buffer.from(tokens[0].slice(1, -1), 'hex').toString(), size,
-              direction: matrix[0] * textMatrix[0] + matrix[2] * textMatrix[1],
-              position,
-            },
-          });
+          const text = {
+            label: Buffer.from(tokens[0].slice(1, -1), 'hex').toString(), size,
+            direction: matrix[0] * textMatrix[0] + matrix[2] * textMatrix[1],
+            position,
+          };
+          if (baseFont === '/Helvetica') scaleBar.notes.push(text);
+          else shapes.push({ role: 'text', flipped, box: bounds([position]), text });
         }
       }
     }
@@ -106,6 +124,8 @@ async function read(bytes: Uint8Array) {
     minis: minis(shapes),
     texts: shapes.filter(s => s.role === 'text').map(s => s.text!),
     pages: pdf.getPageCount(),
+    scaleBars,
+    printScaling: pdf.catalog.getViewerPreferences()?.getPrintScaling(),
   };
 }
 
@@ -307,6 +327,60 @@ await t('the badge marks the base, a fixed step inside it', async () => {
     badgeWidth: widthMm(badge),
     badgeHeight: asMm(badge.top - badge.bottom),
   }, { baseLeftInset: 7, badgeWidth: 5.5, badgeHeight: 4.675 });
+});
+
+// A print dialog on "Fit to page" shrinks the sheet by a few per cent. The bar
+// is how the user finds out before cutting, so it has to be a true 100 mm.
+await t('every sheet carries a 100 mm scale bar starting at the left margin', async () => {
+  // #given  nine Medium squares, which spill onto a second A4 sheet
+  const copies: Entry = { ...entry, heightSlot: 'medium', count: 9 };
+  // #when
+  const sheet = await read(await generatePDF([copies], { pageSize: 'a4', numberDuplicates: false }));
+  // #then  the bar spans exactly 100 mm, and no tick reaches past its ends
+  assert.deepEqual(sheet.scaleBars.map(({ page, marks }) => {
+    const span = bounds(marks.flatMap(box => [
+      { x: box.left, y: box.bottom }, { x: box.right, y: box.top }]));
+    return { page, left: asMm(span.left), length: widthMm(span) };
+  }), [
+    { page: 0, left: 10, length: 100 },
+    { page: 1, left: 10, length: 100 },
+  ]);
+});
+
+await t('the scale bar says what length it must measure and what to do if it does not', async () => {
+  // #when
+  const sheet = await read(await generatePDF([entry], { pageSize: 'a4', numberDuplicates: false }));
+  // #then
+  assert.deepEqual(sheet.scaleBars.map(bar => bar.notes.map(note => note.label)),
+    [['Must measure 100 mm. If shorter, print at Actual size (100%).']]);
+});
+
+await t('the scale bar sits in the top margin, clear of the first row, on both pages', async () => {
+  // #given  a tall mini, so the first row starts right at the top margin
+  const tall: Entry = { ...entry, heightSlot: 'large' };
+  // #when
+  const sheets = await Promise.all((['a4', 'letter'] as const).map(async pageSize =>
+    read(await generatePDF([tall], { pageSize, numberDuplicates: false }))));
+  // #then  every mark and the note sit above the mini's top tab and to the
+  //        right of the bar, and the note starts after the bar ends
+  assert.deepEqual(sheets.map(({ scaleBars: [bar], minis: [mini] }) => {
+    const barRight = Math.max(...bar.marks.map(box => box.right));
+    return {
+      marksAboveRow: bar.marks.every(box => box.bottom > mini.topTab.top),
+      noteAboveRow: bar.notes.every(note => note.position.y > mini.topTab.top),
+      noteAfterBar: bar.notes.every(note => note.position.x > barRight),
+    };
+  }), [
+    { marksAboveRow: true, noteAboveRow: true, noteAfterBar: true },
+    { marksAboveRow: true, noteAboveRow: true, noteAfterBar: true },
+  ]);
+});
+
+await t('the PDF asks viewers to print at actual size', async () => {
+  // #when
+  const { printScaling } = await read(await generatePDF([entry], { pageSize: 'a4', numberDuplicates: false }));
+  // #then  /PrintScaling /None in the catalog's viewer preferences
+  assert.equal(printScaling, PrintScaling.None);
 });
 
 console.log(`\n${passed} passed`);
