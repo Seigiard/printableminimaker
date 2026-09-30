@@ -145,7 +145,7 @@ const artwork = {
 };
 const entry: Entry = { image: null, artwork, heightSlot: 'tiny', count: 1 };
 
-// 3x2 px at Medium: the figure prints 45 mm wide at its 30 mm height, over a
+// 3x2 px at Medium: the figure prints 52.5 mm wide at its 35 mm height, over a
 // 25 mm base, overhanging it and staying under the width cap.
 const wide: Entry = { ...entry, heightSlot: 'medium', artwork: {
   bytes: Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAASFvFNAAAADklEQVR4nGNwgAEGOAsALRQEgQjZfUEAAAAASUVORK5CYII=', 'base64')),
@@ -248,10 +248,10 @@ await t('a height slot prints one figure height for artworks of different propor
   const { minis } = await read(await generatePDF([entry, sliver], {
     pageSize: 'a4', numberDuplicates: false, marginMm: 0,
   }));
-  // #then  Tiny is 11 mm tall in ADR-0002's graded table, front and back, both entries
+  // #then  Tiny is 12 mm tall in ADR-0002's graded table, front and back, both entries
   assert.deepEqual(
     minis.flatMap(mini => [mini.front.image, mini.back.image]).map(box => asMm(box.top - box.bottom)),
-    [11, 11, 11, 11],
+    [12, 12, 12, 12],
   );
 });
 
@@ -260,7 +260,7 @@ await t('a tab keeps its base width while the figure overhangs it', async () => 
   const { minis } = await read(await generatePDF([wide], {
     pageSize: 'a4', numberDuplicates: true, marginMm: 0,
   }));
-  // #then  Medium's 25 mm base, with the figure's 45 mm spread centred over it
+  // #then  Medium's 25 mm base, with the figure's 52.5 mm spread centred over it
   const [mini] = minis;
   assert.deepEqual({
     bottomTab: widthMm(mini.bottomTab), topTab: widthMm(mini.topTab),
@@ -273,7 +273,7 @@ await t('a tab keeps its base width while the figure overhangs it', async () => 
     badgeOverBase: [mini.front.badge!, mini.back.badge!].map(badge =>
       badge.left > mini.bottomTab.left && badge.right < mini.bottomTab.right),
   }, {
-    bottomTab: 25, topTab: 25, figure: 45, overhangLeft: 10, overhangRight: 10,
+    bottomTab: 25, topTab: 25, figure: 52.5, overhangLeft: 13.75, overhangRight: 13.75,
     tabsAligned: true, badgeOverBase: [true, true],
   });
 });
@@ -290,12 +290,12 @@ await t('the fold line spans the reserved column, overhang and margins included'
     crossesFigure: mini.fold.left < mini.front.image.left && mini.fold.right > mini.front.image.right,
     atVerticalCentre: asMm(mini.fold.bottom - mini.extent.bottom)
       === asMm(mini.extent.top - mini.fold.top),
-  }, { fold: 49, tab: 25, figure: 45, crossesFigure: true, atVerticalCentre: true });
+  }, { fold: 56.5, tab: 25, figure: 52.5, crossesFigure: true, atVerticalCentre: true });
 });
 
 await t('the badge marks the base, a fixed step inside it', async () => {
-  // #when  square art at Medium prints 30 mm wide, so the 25 mm base sits
-  // 2.5 mm inside the figure and 4.5 mm inside the mini's own left edge
+  // #when  square art at Medium prints 35 mm wide, so the 25 mm base sits
+  // 5 mm inside the figure and 7 mm inside the mini's own left edge
   const { minis } = await read(await generatePDF([{ ...entry, heightSlot: 'medium' }], {
     pageSize: 'a4', numberDuplicates: true, marginMm: 2,
   }));
@@ -306,7 +306,7 @@ await t('the badge marks the base, a fixed step inside it', async () => {
     baseLeftInset: asMm(badge.right + 0.8 * PT_PER_MM - mini.extent.left - 25 * PT_PER_MM),
     badgeWidth: widthMm(badge),
     badgeHeight: asMm(badge.top - badge.bottom),
-  }, { baseLeftInset: 4.5, badgeWidth: 5.5, badgeHeight: 4.675 });
+  }, { baseLeftInset: 7, badgeWidth: 5.5, badgeHeight: 4.675 });
 });
 
 console.log(`\n${passed} passed`);

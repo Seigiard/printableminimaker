@@ -26,7 +26,7 @@ export const MIN_TAB_HEIGHT_MM = 4;
 // cap can end up shorter than its own 4 mm tab. The grip the fold needs is a
 // fixed physical thing, so it does not scale away; the six-row table had the
 // same corner, more often, with a fixed 8 mm tab. The height slots are graded true to scale at the small end —
-// a Tiny is 11 mm — and a fixed 8 mm tab under an 11 mm figure is the "strip of
+// a Tiny is 12 mm — and a fixed 8 mm tab under a 12 mm figure is the "strip of
 // paper with a dot on top" #20's story 10 was written against. Shrinking the
 // tab under a short figure keeps the figure scale honest instead of inflating
 // Tiny and Small back over true scale, which would re-compress the very
@@ -36,7 +36,7 @@ export const MAX_TAB_HEIGHT_RATIO = 0.4;
 // Measured from the figure's printed height, not its slot's nominal one, so a
 // figure scaled down by the width cap gets the tab it actually stands on. Any
 // figure printing 20 mm or taller keeps the full tab, which at nominal height is
-// every slot from the short Medium up — but wide artwork can drop one of those
+// every slot from Small up — but wide artwork can drop one of those
 // below 20 mm, and then it shrinks like any other short figure.
 export function tabHeightMm(figureHeightMm: number): number {
   const proportional = figureHeightMm * MAX_TAB_HEIGHT_RATIO;

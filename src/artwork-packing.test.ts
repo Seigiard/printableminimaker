@@ -16,22 +16,22 @@ const entry = (count: number, artwork: PreparedArtwork | null = square): Entry =
   image: null, artwork, heightSlot: 'medium', count,
 });
 
-t('18 prepared medium squares fit one A4 sheet', () => {
+t('15 prepared medium squares fit one A4 sheet', () => {
   // #given
-  const entries = [entry(18)];
+  const entries = [entry(15)];
   // #when
   const result = packEntries(entries, opts);
   // #then
-  assert.deepEqual([result.miniCount, result.pageCount], [18, 1]);
+  assert.deepEqual([result.miniCount, result.pageCount], [15, 1]);
 });
 
-t('19 prepared medium squares require two A4 sheets', () => {
+t('16 prepared medium squares require two A4 sheets', () => {
   // #given
-  const entries = [entry(19)];
+  const entries = [entry(16)];
   // #when
   const result = packEntries(entries, opts);
   // #then
-  assert.deepEqual([result.miniCount, result.pageCount], [19, 2]);
+  assert.deepEqual([result.miniCount, result.pageCount], [16, 2]);
 });
 
 t('packEntries omits entries with null artwork', () => {
@@ -45,13 +45,13 @@ t('packEntries omits entries with null artwork', () => {
 });
 
 t('packEntries uses the current artwork height', () => {
-  // #given  19 squares need two sheets; taller art prints narrower and fits one
-  const e = entry(19);
+  // #given  16 squares need two sheets; taller art prints narrower and fits one
+  const e = entry(16);
   // #when
   e.artwork = { ...square, height: 150 };
   const result = packEntries([e], opts);
   // #then
-  assert.deepEqual([result.miniCount, result.pageCount], [19, 1]);
+  assert.deepEqual([result.miniCount, result.pageCount], [16, 1]);
 });
 
 t('unprepared entries preserve the source indices of packed and oversized entries', () => {
@@ -65,12 +65,12 @@ t('unprepared entries preserve the source indices of packed and oversized entrie
 });
 
 t('prepared artwork proportions reach fitting through packEntries', () => {
-  // #given  tall art at Medium prints 30 mm tall, whatever its proportions
-  const e = { ...entry(1), artwork: { ...square, width: 100, height: 300 } };
+  // #given  tall art at Medium prints 35 mm tall, whatever its proportions
+  const e = { ...entry(1), artwork: { ...square, width: 100, height: 350 } };
   // #when
   const mini = packEntries([e], opts).pages[0].rows[0].items[0];
   // #then
-  assert.deepEqual([mini.imageHeightMm, mini.imageWidthMm], [30, 10]);
+  assert.deepEqual([mini.imageHeightMm, mini.imageWidthMm], [35, 10]);
 });
 
 t('a custom entry carries both of its dimensions into the fit', () => {

@@ -21,13 +21,13 @@ t('nine slots grade height across the range, each on its category’s base', () 
   const table = slots.map((slot) => [slot, resolveBaseWidthMm({ heightSlot: slot }), resolveFigureHeightMm({ heightSlot: slot })]);
   // #then
   assert.deepEqual(table, [
-    ['tiny', 20, 11],
-    ['small', 25, 17],
-    ['medium-short', 25, 23],
-    ['medium', 25, 30],
-    ['medium-tall', 25, 37],
-    ['large', 37, 48],
-    ['large-tall', 37, 69],
+    ['tiny', 20, 12],
+    ['small', 25, 20],
+    ['medium-short', 25, 27],
+    ['medium', 25, 35],
+    ['medium-tall', 25, 43],
+    ['large', 37, 56],
+    ['large-tall', 37, 82],
     ['huge', 50, 95],
     ['gargantuan', 75, 111],
   ]);
@@ -55,16 +55,19 @@ t('every adjacent pair of slots prints a taller figure than the one below it', (
   // #when
   const rising = heights.every((height, i) => i === 0 || heights[i - 1] < height);
   // #then  ordering holds between neighbours, not merely between categories
-  assert.deepEqual([rising, heights], [true, [11, 17, 23, 30, 37, 48, 69, 95, 111]]);
+  assert.deepEqual([rising, heights], [true, [12, 20, 27, 35, 43, 56, 82, 95, 111]]);
 });
 
-t('Medium is unchanged from the six-row table, so an existing row prints as before', () => {
+// Printable Heroes sells the paper minis this tool is most often fed, and their
+// human prints about 35 mm tall; a Medium that prints shorter stands a head
+// below their own figures on the same table.
+t('Medium prints a human at Printable Heroes’ scale', () => {
   // #given
   const entry = { heightSlot: 'medium' as const };
   // #when
   const dimensions = [resolveBaseWidthMm(entry), resolveFigureHeightMm(entry)];
   // #then
-  assert.deepEqual(dimensions, [25, 30]);
+  assert.deepEqual(dimensions, [25, 35]);
 });
 
 t('a dwarf and a bugbear, both Medium, print at visibly different heights', () => {
@@ -73,7 +76,7 @@ t('a dwarf and a bugbear, both Medium, print at visibly different heights', () =
   // #when
   const heights = slots.map((heightSlot) => resolveFigureHeightMm({ heightSlot }));
   // #then  a 60% gap reads instantly on the table
-  assert.deepEqual([heights, heights[1] / heights[0] > 1.5], [[23, 37], true]);
+  assert.deepEqual([heights, heights[1] / heights[0] > 1.5], [[27, 43], true]);
 });
 
 t('a halfling prints shorter than a dwarf, and a dwarf shorter than a human', () => {
@@ -82,7 +85,7 @@ t('a halfling prints shorter than a dwarf, and a dwarf shorter than a human', ()
   // #when
   const heights = slots.map((heightSlot) => resolveFigureHeightMm({ heightSlot }));
   // #then
-  assert.deepEqual([heights, heights[0] < heights[1] && heights[1] < heights[2]], [[17, 23, 30], true]);
+  assert.deepEqual([heights, heights[0] < heights[1] && heights[1] < heights[2]], [[20, 27, 35], true]);
 });
 
 // One example pins the shape of the text itself, which is a contract with the
@@ -185,13 +188,13 @@ t('a figure past the width cap is scaled down whole with its aspect intact', () 
 // shares one base.
 t('slots of one category stay apart when the artwork is wide enough to cap', () => {
   // #given  a dwarf and a bugbear, both Medium, on artwork three times as wide as it is tall
-  const dwarf = { baseWidthMm: 25, figureHeightMm: 23 };
-  const bugbear = { baseWidthMm: 25, figureHeightMm: 37 };
+  const dwarf = { baseWidthMm: 25, figureHeightMm: 27 };
+  const bugbear = { baseWidthMm: 25, figureHeightMm: 43 };
   // #when
   const heights = [dwarf, bugbear].map((slot) => fitFigure(slot, 300, 100).imageHeightMm);
   // #then  both are scaled down, and the bugbear still prints the taller
   assert.deepEqual([heights, heights[0] < heights[1], heights[1] / heights[0]],
-    [[11.5, 18.5], true, bugbear.figureHeightMm / dwarf.figureHeightMm]);
+    [[13.5, 21.5], true, bugbear.figureHeightMm / dwarf.figureHeightMm]);
 });
 
 t('the tallest slot’s widest figure still fits the page', () => {

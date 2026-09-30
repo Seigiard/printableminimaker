@@ -37,7 +37,7 @@ t('default margin reserves paper around both faces without shrinking the figure'
   assert.deepEqual(
     [mini.baseWidthMm, mini.imageWidthMm, mini.imageHeightMm,
       mini.totalWidthMm, mini.totalHeightMm, mini.imageOffsetXMm, mini.marginMm],
-    [25, 30, 30, 34, 84, 2, 2],
+    [25, 35, 35, 39, 94, 2, 2],
   );
 });
 
@@ -74,16 +74,16 @@ t('custom entry without a valid width is not packed', () => {
 
 // --- row grouping respects usable width/height ---
 
-t('medium squares pack 6 per row, 3 rows per A4 page', () => {
-  // medium = 30mm figure on a 25mm base, square art => image 30x30, reserved
-  // width 30, totalHeight = 30*2 + 8*2 = 76mm.
-  // width: 6*30 + 5*2 = 190 <= 190; 7 would be 222 > 190.
-  // height: first row 76, each more +78; 3 rows = 76+78*2 = 232 <= 277; 4th = 310 > 277.
-  const r = packMinis([entry({ count: 18 })], { pageSize: 'a4', numberDuplicates: false, marginMm: 0 });
+t('medium squares pack 5 per row, 3 rows per A4 page', () => {
+  // medium = 35mm figure on a 25mm base, square art => image 35x35, reserved
+  // width 35, totalHeight = 35*2 + 8*2 = 86mm.
+  // width: 5*35 + 4*2 = 183 <= 190; 6 would be 220 > 190.
+  // height: first row 86, each more +88; 3 rows = 86+88*2 = 262 <= 277; 4th = 350 > 277.
+  const r = packMinis([entry({ count: 15 })], { pageSize: 'a4', numberDuplicates: false, marginMm: 0 });
   assert.equal(r.pageCount, 1);
   assert.equal(r.pages[0].rows.length, 3);
   for (const row of r.pages[0].rows) {
-    assert.equal(row.items.length, 6);
+    assert.equal(row.items.length, 5);
     assert.ok(row.widthMm <= usableW, `row width ${row.widthMm} <= ${usableW}`);
   }
 });
@@ -100,8 +100,8 @@ t('no row exceeds usable width and no page exceeds usable height', () => {
   }
 });
 
-t('19 medium squares spill onto a second page', () => {
-  const r = packMinis([entry({ count: 19 })], { pageSize: 'a4', numberDuplicates: false, marginMm: 0 });
+t('16 medium squares spill onto a second page', () => {
+  const r = packMinis([entry({ count: 16 })], { pageSize: 'a4', numberDuplicates: false, marginMm: 0 });
   assert.equal(r.pageCount, 2);
 });
 
@@ -187,9 +187,9 @@ t('totalHeight matches the front+back image plus that mini’s two tabs', () => 
     [m.imageHeightMm * 2 + m.tabHeightMm * 2, TAB_HEIGHT_MM]);
 });
 
-t('2 mm margins fit 15 medium squares per A4 sheet with 2 mm gaps', () => {
+t('2 mm margins fit 8 medium squares per A4 sheet with 2 mm gaps', () => {
   // #given
-  const entries = [entry({ count: 16 })];
+  const entries = [entry({ count: 9 })];
   // #when
   const result = packMinis(entries, { pageSize: 'a4', numberDuplicates: false, marginMm: 2 });
   // #then
@@ -197,8 +197,8 @@ t('2 mm margins fit 15 medium squares per A4 sheet with 2 mm gaps', () => {
     height: page.heightMm,
     rows: page.rows.map((row) => [row.items.length, row.widthMm, row.heightMm]),
   })), [
-    { height: 256, rows: [[5, 178, 84], [5, 178, 84], [5, 178, 84]] },
-    { height: 84, rows: [[1, 34, 84]] },
+    { height: 190, rows: [[4, 162, 94], [4, 162, 94]] },
+    { height: 94, rows: [[1, 39, 94]] },
   ]);
 });
 
@@ -243,23 +243,23 @@ t('shared tall artwork keeps each size centred within the same margin', () => {
     mini.baseWidthMm, mini.imageWidthMm, mini.imageHeightMm,
     mini.totalWidthMm, mini.totalHeightMm, mini.imageOffsetXMm, mini.marginMm,
   ]))), [
-    [37, 24, 48, 43, 124, 9.5, 3],
-    [20, 5.5, 11, 26, 42.8, 10.25, 3],
+    [37, 28, 56, 43, 140, 7.5, 3],
+    [20, 6, 12, 26, 45.6, 10, 3],
   ]);
 });
 
 t('a numbered mini at zero margin centres its tab and base under the figure', () => {
-  // #given  square art at Medium prints 30 mm tall, overhanging its 25 mm base
+  // #given  square art at Medium prints 35 mm tall, overhanging its 25 mm base
   const entries = [entry({})];
   // #when
   const result = packMinis(entries, { pageSize: 'a4', numberDuplicates: true, marginMm: 0 });
   // #then
-  assert.deepEqual(result.pages, [{ heightMm: 76, rows: [{
-    widthMm: 30, heightMm: 76, items: [{
+  assert.deepEqual(result.pages, [{ heightMm: 86, rows: [{
+    widthMm: 35, heightMm: 86, items: [{
       entryIndex: 0, copyIndex: 0, heightSlot: 'medium', baseWidthMm: 25,
-      imageWidthMm: 30, imageHeightMm: 30, imageOffsetXMm: 0,
-      totalWidthMm: 30, tabWidthMm: 25, tabOffsetXMm: 2.5, baseOffsetXMm: 2.5,
-      tabHeightMm: 8, totalHeightMm: 76, marginMm: 0, label: '1',
+      imageWidthMm: 35, imageHeightMm: 35, imageOffsetXMm: 0,
+      totalWidthMm: 35, tabWidthMm: 25, tabOffsetXMm: 5, baseOffsetXMm: 5,
+      tabHeightMm: 8, totalHeightMm: 86, marginMm: 0, label: '1',
     }],
   }] }]);
 });
@@ -270,7 +270,7 @@ t('a mini reserves the greater of figure width and base width, plus margins', ()
   // #given  wide art overhangs a Medium base; tall art stays well inside it
   const entries = [
     entry({ naturalWidth: 150, naturalHeight: 100 }),
-    entry({ naturalWidth: 100, naturalHeight: 300 }),
+    entry({ naturalWidth: 100, naturalHeight: 350 }),
   ];
   // #when
   const result = packMinis(entries, { ...sheetOpts, marginMm: 2 });
@@ -278,8 +278,8 @@ t('a mini reserves the greater of figure width and base width, plus margins', ()
   assert.deepEqual(result.pages[0].rows[0].items.map((mini) => [
     mini.baseWidthMm, mini.imageWidthMm, mini.imageHeightMm, mini.totalWidthMm, mini.imageOffsetXMm,
   ]), [
-    [25, 45, 30, 49, 2],
-    [25, 10, 30, 29, 9.5],
+    [25, 52.5, 35, 56.5, 2],
+    [25, 10, 35, 29, 9.5],
   ]);
 });
 
@@ -299,7 +299,7 @@ t('overhanging figures never overlap their neighbours', () => {
   });
   assert.deepEqual({
     figures: rows.flat().length,
-    overhanging: rows.flat().every(([left, right]) => right - left === 45),
+    overhanging: rows.flat().every(([left, right]) => right - left === 52.5),
     overlapping: rows.some((figures) =>
       figures.some(([, right], i) => i + 1 < figures.length && right > figures[i + 1][0])),
   }, { figures: 4, overhanging: true, overlapping: false });
@@ -318,7 +318,7 @@ t('a tab keeps its base width while the figure overhangs it', () => {
   // #given  wide art overhangs a Medium base, narrow art stays inside it
   const entries = [
     entry({ naturalWidth: 150, naturalHeight: 100 }),
-    entry({ naturalWidth: 100, naturalHeight: 300 }),
+    entry({ naturalWidth: 100, naturalHeight: 350 }),
   ];
   // #when
   const result = packMinis(entries, { ...sheetOpts, marginMm: 2 });
@@ -326,7 +326,7 @@ t('a tab keeps its base width while the figure overhangs it', () => {
   assert.deepEqual(result.pages[0].rows[0].items.map((mini) => [
     mini.tabWidthMm, mini.baseWidthMm, mini.imageWidthMm, mini.totalWidthMm,
   ]), [
-    [25, 25, 45, 49],
+    [25, 25, 52.5, 56.5],
     [25, 25, 10, 29],
   ]);
 });
@@ -361,8 +361,8 @@ t('every slot stands its figure well clear of its own tab', () => {
   }, {
     slots: HEIGHT_SLOT_ORDER.length,
     clearance: true,
-    // Only Tiny and Small are short enough to shrink their tab.
-    fullTabFrom: ['medium-short', 'medium', 'medium-tall', 'large', 'large-tall', 'huge', 'gargantuan'],
+    // Only Tiny is short enough to shrink its tab.
+    fullTabFrom: ['small', 'medium-short', 'medium', 'medium-tall', 'large', 'large-tall', 'huge', 'gargantuan'],
   });
 });
 
@@ -413,10 +413,10 @@ t('a figure shortened by the width cap gets the tab it actually stands on', () =
   const entries = [entry({ heightSlot: 'medium', naturalWidth: 400, naturalHeight: 100 })];
   // #when
   const mini = packMinis(entries, { ...sheetOpts, marginMm: 2 }).pages[0].rows[0].items[0];
-  // #then  11.25 mm of figure carries a 4.5 mm tab, not the 8 mm its slot would
+  // #then  13.125 mm of figure carries a 5.25 mm tab, not the 8 mm its slot would
   //        have earned — a full tab here is the strip of paper with a dot on top
   assert.deepEqual([mini.imageHeightMm, mini.tabHeightMm, mini.imageHeightMm >= mini.tabHeightMm * 2],
-    [11.25, 4.5, true]);
+    [13.125, 5.25, true]);
 });
 
 // The dropdown's tooltip is a promise about paper, and it reaches the user

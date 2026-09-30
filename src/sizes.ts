@@ -41,34 +41,36 @@ export type HeightSlotSpec = {
 
 // ADR-0002: height is the user's input and the size category follows from the
 // slot, rather than the other way round. Graded on a 1.7 m human printing
-// 30 mm — today's Medium, so an existing Medium row is untouched — which works
-// out to 5.3 mm per foot, held linear from Tiny up to the tall Large slot.
+// 35 mm, the scale Printable Heroes prints its own paper minis at, so ours stand
+// eye to eye with theirs on one table. That works out to about 6.3 mm per foot,
+// held linear from Tiny up to the tall Large slot.
 //
 // The top two rows leave that line, because the paper runs out before the
 // creatures do. An unfolded mini costs 2h + 4×margin + 2×tab, so every extra
 // millimetre of figure margin costs four of height: a row tuned to the very edge
 // of the page at the default 2 mm margin falls off it the moment the user widens
 // the margin to cut more comfortably. Gargantuan is therefore cut to 111 rather
-// than the 170 the linear scale asks for, which leaves it printable through a
+// than the 206 the linear scale asks for, which leaves it printable through a
 // 5 mm margin on Letter, the smaller of the two pages.
 //
-// Huge is then cut to 95 for a different reason: its own linear 106 clears the
-// page comfortably, but against a paper-bound Gargantuan at 111 the two would
-// print 5% apart and read as one size. 95 buys the step back — at the cost of
-// the top of the scale meaning rank rather than height, since 20 and 32+ feet
-// now print 17% apart. Every other row is the linear value rounded.
+// Huge's own linear 124 does not fit Letter at any margin, so it is paper-bound
+// too. It sits at 95 rather than just under Gargantuan, because two rows 5%
+// apart read as one size on cut paper; 95 keeps a step of about 16% on either
+// side, to the tall Large below and Gargantuan above. The cost is that the top
+// of the scale means rank rather than height: 4 m, 6 m and 10 m+ print at 82,
+// 95 and 111. Every other row is the linear value rounded.
 //
 // The small end stays on the line rather than being inflated as the six-row
 // table inflated Tiny, because the tab gives way instead: `tabHeightMm` in
 // packing.ts shrinks it under a short figure. See ADR-0002 on the tab floor.
 export const HEIGHT_SLOTS: Record<HeightSlot, HeightSlotSpec> = {
-  'tiny': { category: 'tiny', realHeight: '0.6 m', typical: 'familiar, imp, hawk', figureHeightMm: 11 },
-  'small': { category: 'small', realHeight: '0.95 m', typical: 'halfling, gnome, wolf', figureHeightMm: 17 },
-  'medium-short': { category: 'medium', grade: 'short', realHeight: '1.3 m', typical: 'dwarf', figureHeightMm: 23 },
-  'medium': { category: 'medium', realHeight: '1.7 m', typical: 'human, elf, orc', figureHeightMm: 30 },
-  'medium-tall': { category: 'medium', grade: 'tall', realHeight: '2.1 m', typical: 'bugbear, goliath', figureHeightMm: 37 },
-  'large': { category: 'large', realHeight: '2.7 m', typical: 'ogre, troll, owlbear', figureHeightMm: 48 },
-  'large-tall': { category: 'large', grade: 'tall', realHeight: '4 m', typical: 'hill giant, young dragon', figureHeightMm: 69 },
+  'tiny': { category: 'tiny', realHeight: '0.6 m', typical: 'familiar, imp, hawk', figureHeightMm: 12 },
+  'small': { category: 'small', realHeight: '0.95 m', typical: 'halfling, gnome, wolf', figureHeightMm: 20 },
+  'medium-short': { category: 'medium', grade: 'short', realHeight: '1.3 m', typical: 'dwarf', figureHeightMm: 27 },
+  'medium': { category: 'medium', realHeight: '1.7 m', typical: 'human, elf, orc', figureHeightMm: 35 },
+  'medium-tall': { category: 'medium', grade: 'tall', realHeight: '2.1 m', typical: 'bugbear, goliath', figureHeightMm: 43 },
+  'large': { category: 'large', realHeight: '2.7 m', typical: 'ogre, troll, owlbear', figureHeightMm: 56 },
+  'large-tall': { category: 'large', grade: 'tall', realHeight: '4 m', typical: 'hill giant, young dragon', figureHeightMm: 82 },
   'huge': { category: 'huge', realHeight: '6 m', typical: 'giant, adult dragon', figureHeightMm: 95 },
   'gargantuan': { category: 'gargantuan', realHeight: '10 m+', typical: 'ancient dragon, kraken', figureHeightMm: 111 },
 };
@@ -156,7 +158,7 @@ export function hasPackableDimensions(
 // The denominator is the slot's height, not the figure's printed one, so this
 // does not bound the printed width-to-height ratio and is not meant to: the
 // artwork's own proportions are preserved through the scale-down, which is what
-// keeps the figure uncropped. A 4:1 Medium prints 45 × 11.25 mm — still 4:1.
+// keeps the figure uncropped. A 4:1 Medium prints 52.5 × 13.125 mm — still 4:1.
 //
 // The cap is measured against the slot's figure height, not the base width, and
 // that is load-bearing. A base-width cap contains no slot term — every slot of a
