@@ -60,6 +60,13 @@ figure, down to a floor of 4 mm, so a Tiny stands 2.5× its own tab instead of r
 paper with a dot on top. The floor is where the proportion stops — the fold needs something to grip,
 so a figure scaled below about 10 mm by the width cap ends up with a tab of its own size or larger.
 
+## Printing
+
+Print at **Actual size (100%)**. A print dialog set to "Fit to page" shrinks the whole sheet by a
+few per cent, and every figure with it. The PDF asks viewers not to scale it, but only Acrobat
+listens; Chrome, Firefox and macOS Preview keep their own default. So each sheet carries a 100 mm
+bar in its top margin: measure it, and if it comes out short, print again at 100%.
+
 ## Run locally
 
 ```bash
