@@ -41,10 +41,11 @@ const inside = (inner: Box, outer: Box) =>
 // regular Helvetica, so it is read into its own list per page.
 type Role = 'tab' | 'badge' | 'fold' | 'image' | 'text';
 type Text = { label: string; size: number; direction: number; position: Point };
-type Shape = { role: Role; flipped: boolean; box: Box; text?: Text };
+type Mirror = { x: boolean; y: boolean };
+type Shape = { role: Role; flipped: boolean; box: Box; text?: Text; mirror?: Mirror };
 type ScaleBar = { page: number; marks: Box[]; notes: Text[] };
 
-type Face = { image: Box; badge?: Box; text?: Text };
+type Face = { image: Box; mirror: Mirror; badge?: Box; text?: Text };
 type Mini = { bottomTab: Box; topTab: Box; fold: Box; extent: Box; front: Face; back: Face };
 
 // Read geometry from the saved PDF's graphics operators, not drawing helpers.
@@ -72,7 +73,7 @@ async function read(bytes: Uint8Array) {
         const tokens = line.trim().split(/\s+/);
         const op = tokens.pop();
         const n = tokens.map(Number);
-        const flipped = matrix[0] < 0;
+        const flipped = matrix[3] < 0;
         if (op === 'q') stack.push([...matrix]);
         if (op === 'Q') matrix = stack.pop()!;
         if (op === 'cm') {
@@ -99,7 +100,7 @@ async function read(bytes: Uint8Array) {
         }
         if (op === 'Do') shapes.push({ role: 'image', flipped, box: bounds([
           point(matrix, 0, 0), point(matrix, 1, 0), point(matrix, 0, 1), point(matrix, 1, 1),
-        ]) });
+        ]), mirror: { x: matrix[0] < 0, y: matrix[3] < 0 } });
         if (op === 'Tf') {
           size = n[1];
           baseFont = fonts.lookup(PDFName.of(tokens[0].slice(1)), PDFDict)
@@ -146,6 +147,7 @@ function minis(shapes: Shape[]): Mini[] {
     const fold = pick('fold', false)!.box;
     const face = (flipped: boolean): Face => ({
       image: pick('image', flipped)!.box,
+      mirror: pick('image', flipped)!.mirror!,
       badge: pick('badge', flipped)?.box,
       text: pick('text', flipped)?.text,
     });
@@ -381,6 +383,30 @@ await t('the PDF asks viewers to print at actual size', async () => {
   const { printScaling } = await read(await generatePDF([entry], { pageSize: 'a4', numberDuplicates: false }));
   // #then  /PrintScaling /None in the catalog's viewer preferences
   assert.equal(printScaling, PrintScaling.None);
+});
+
+// Folding along the fold line reflects the back half onto the front, so the
+// back artwork has to be the front's reflection across that line: flipped top
+// to bottom only. Rotated instead, its outline lands mirrored left to right on
+// the front's after folding, and the two faces cannot be cut as one.
+await t('the back face is the front reflected across the fold line', async () => {
+  // #given  art wider than its base, so a left-right mirror would show
+  // #when
+  const { minis: [mini] } = await read(await generatePDF([wide], {
+    pageSize: 'a4', numberDuplicates: false, marginMm: 2,
+  }));
+  // #then
+  const foldY = mini.fold.bottom;
+  assert.deepEqual({
+    front: mini.front.mirror, back: mini.back.mirror,
+    sameColumn: [mini.back.image.left, mini.back.image.right]
+      .map(asMm).join() === [mini.front.image.left, mini.front.image.right].map(asMm).join(),
+    gapBelowFold: asMm(foldY - mini.front.image.top),
+    gapAboveFold: asMm(mini.back.image.bottom - foldY),
+  }, {
+    front: { x: false, y: false }, back: { x: false, y: true },
+    sameColumn: true, gapBelowFold: 2, gapAboveFold: 2,
+  });
 });
 
 console.log(`\n${passed} passed`);
