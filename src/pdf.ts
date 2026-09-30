@@ -131,7 +131,7 @@ function drawMini(
   const stroke = mm(STROKE_MM);
 
   // Bottom-up: tab, margin, front image, margin, fold,
-  // margin, rotated back image, margin, tab.
+  // margin, mirrored back image, margin, tab.
 
   // Cut guides for both tabs; cut around the figures freehand. A tab is the
   // base's width, so a figure may overhang it on both sides.
@@ -172,25 +172,33 @@ function drawMini(
     );
   }
 
-  // Back image — rotated 180° (= mirror horizontal + flip vertical), centered.
-  // CTM [-1 0 0 -1 e f] maps (px,py) → (e-px, f-py).
-  // For an image drawn at (0,0) sized iw×imgH, the four corners map to a
-  // rectangle from (e-iw, f-imgH) to (e, f), one margin below the top tab.
+  // Back image — the front reflected across the fold line, top to bottom only.
+  // Folding is that same reflection, so the two outlines land on each other and
+  // cut as one; a 180° rotation would land them mirrored left to right.
+  // CTM [1 0 0 -1 e f] maps (px,py) → (e+px, f-py), so an image drawn at (0,0)
+  // sized iw×imgH fills (e, f-imgH) to (e+iw, f), one margin below the top tab.
   const backTop = yBottom + tab + imgH * 2 + margin * 3;
   pdfPage.pushOperators(pushGraphicsState());
-  pdfPage.pushOperators(
-    concatTransformationMatrix(-1, 0, 0, -1, x + offX + iw, backTop),
-  );
+  pdfPage.pushOperators(concatTransformationMatrix(1, 0, 0, -1, x + offX, backTop));
   pdfPage.drawImage(pdfImage, { x: 0, y: 0, width: iw, height: imgH });
-  // Back label — same local coords as front so it lands on the visual
-  // bottom-right of the back face after folding + walking around.
+  pdfPage.pushOperators(popGraphicsState());
+
+  // Back label — under a 180° rotation rather than the mirror, because text
+  // mirrored by the fold reads backwards. Fold plus walking around the mini is
+  // a rotation, so rotated text reads upright from behind, and the same local
+  // coords as the front put it at the bottom-right of the back face.
+  // CTM [-1 0 0 -1 e f] maps (px,py) → (e-px, f-py) over the same rectangle.
   if (mini.label) {
+    pdfPage.pushOperators(pushGraphicsState());
+    pdfPage.pushOperators(
+      concatTransformationMatrix(-1, 0, 0, -1, x + offX + iw, backTop),
+    );
     // The same centring as `baseOffsetXMm`, but measured from the image's own
     // origin, which is where the flipped frame puts zero.
     const baseFromImageX = mm((mini.imageWidthMm - mini.baseWidthMm) / 2);
     drawLabelBadge(pdfPage, mini.label, font, mini.baseWidthMm, labelRoomMm, baseFromImageX, 0);
+    pdfPage.pushOperators(popGraphicsState());
   }
-  pdfPage.pushOperators(popGraphicsState());
 
   // Fold line — dotted, at the unfolded mini's vertical centre. It spans the
   // reserved column rather than the tab: the crease has to cross every part of
