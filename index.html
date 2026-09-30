@@ -89,6 +89,16 @@
 
       <section id="rows" class="rows" aria-label="Mini entries"></section>
 
+      <!-- The real PDF in the browser's own viewer, rebuilt only on request:
+           generation embeds every image at full resolution. -->
+      <section id="preview" class="preview" aria-label="PDF preview" hidden>
+        <div class="preview-bar">
+          <button id="preview-btn" type="button" class="ghost-btn">Preview PDF</button>
+          <span id="preview-stale" class="preview-stale" hidden>The list or settings changed since this preview.</span>
+        </div>
+        <iframe id="preview-frame" class="preview-frame" title="PDF preview" hidden></iframe>
+      </section>
+
       <p class="hint">A height slot sets how tall a figure prints, and its width follows the artwork — except very wide artwork, which is scaled down whole and prints a little short. Normalize artwork trims transparent or flat-colour margins. Details close to the background colour may also be trimmed. Turn it off to print the original artwork. The slot also carries a size category, which sets the base width. A ! badge means the artwork could not be trimmed or the mini is too large.</p>
     </main>
 
