@@ -16,22 +16,22 @@ const entry = (count: number, artwork: PreparedArtwork | null = square): Entry =
   image: null, artwork, heightSlot: 'medium', count,
 });
 
-t('15 prepared medium squares fit one A4 sheet', () => {
+t('8 prepared medium squares fit one A4 sheet', () => {
   // #given
-  const entries = [entry(15)];
+  const entries = [entry(8)];
   // #when
   const result = packEntries(entries, opts);
   // #then
-  assert.deepEqual([result.miniCount, result.pageCount], [15, 1]);
+  assert.deepEqual([result.miniCount, result.pageCount], [8, 1]);
 });
 
-t('16 prepared medium squares require two A4 sheets', () => {
+t('9 prepared medium squares require two A4 sheets', () => {
   // #given
-  const entries = [entry(16)];
+  const entries = [entry(9)];
   // #when
   const result = packEntries(entries, opts);
   // #then
-  assert.deepEqual([result.miniCount, result.pageCount], [16, 2]);
+  assert.deepEqual([result.miniCount, result.pageCount], [9, 2]);
 });
 
 t('packEntries omits entries with null artwork', () => {
@@ -45,13 +45,14 @@ t('packEntries omits entries with null artwork', () => {
 });
 
 t('packEntries uses the current artwork height', () => {
-  // #given  16 squares need two sheets; taller art prints narrower and fits one
-  const e = entry(16);
+  // #given  9 squares need two sheets; taller art prints narrower than its
+  //         25 mm base, so six stand in a row and 9 fit one
+  const e = entry(9);
   // #when
   e.artwork = { ...square, height: 150 };
   const result = packEntries([e], opts);
   // #then
-  assert.deepEqual([result.miniCount, result.pageCount], [16, 1]);
+  assert.deepEqual([result.miniCount, result.pageCount], [9, 1]);
 });
 
 t('unprepared entries preserve the source indices of packed and oversized entries', () => {
@@ -73,13 +74,14 @@ t('prepared artwork proportions reach fitting through packEntries', () => {
   assert.deepEqual([mini.imageHeightMm, mini.imageWidthMm], [35, 10]);
 });
 
-t('a custom entry carries both of its dimensions into the fit', () => {
+t('a custom entry carries both of its dimensions into the fit and the stand', () => {
   // #given
   const e: Entry = { ...entry(1), heightSlot: 'custom', customWidthMm: 30, customHeightMm: 45 };
   // #when
   const mini = packEntries([e], opts).pages[0].rows[0].items[0];
-  // #then
-  assert.deepEqual([mini.imageHeightMm, mini.imageWidthMm, mini.baseWidthMm], [45, 45, 30]);
+  // #then  its tab is half its own base, as a slot's is
+  assert.deepEqual([mini.imageHeightMm, mini.imageWidthMm, mini.baseWidthMm, mini.tabHeightMm],
+    [45, 45, 30, 15]);
 });
 
 console.log(`\n${passed} passed`);

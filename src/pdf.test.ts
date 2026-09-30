@@ -32,21 +32,27 @@ const inside = (inner: Box, outer: Box) =>
   inner.left > outer.left && inner.right < outer.right
   && inner.bottom > outer.bottom && inner.top < outer.top;
 
-// A tab is the width of its base, not of its mini, so nothing here may address
-// a shape by its position in the stream. Every shape carries the role the PDF
-// itself reveals: a stroked closed path is a tab outline, a filled one a
-// badge, a two-point stroke the fold line, and a negative CTM marks the back
-// face. Assertions name those roles. The scale bar is sheet furniture rather
-// than part of any mini: it is the only fill-only path and the only text set in
-// regular Helvetica, so it is read into its own list per page.
-type Role = 'tab' | 'badge' | 'fold' | 'image' | 'text';
+// Every shape carries the role the PDF itself reveals: a stroked path is a
+// mini's cut marks, a filled-and-stroked one a badge, and a negative vertical
+// CTM marks the back face. Assertions name those roles. The scale bar is sheet
+// furniture rather than part of any mini: it is the only fill-only path and the
+// only text set in regular Helvetica, so it is read into its own list per page.
+type Role = 'marks' | 'badge' | 'image' | 'text';
 type Text = { label: string; size: number; direction: number; position: Point };
 type Mirror = { x: boolean; y: boolean };
-type Shape = { role: Role; flipped: boolean; box: Box; text?: Text; mirror?: Mirror };
+type Segment = [Point, Point];
+type Shape = { role: Role; flipped: boolean; box: Box; text?: Text; mirror?: Mirror; segments?: Segment[] };
 type ScaleBar = { page: number; marks: Box[]; notes: Text[] };
 
 type Face = { image: Box; mirror: Mirror; badge?: Box; text?: Text };
-type Mini = { bottomTab: Box; topTab: Box; fold: Box; extent: Box; front: Face; back: Face };
+// A level is a height where the cut marks name a line across the piece: a
+// cross where the piece is cut or folds between the faces, a half mark where a
+// strip folds. `outward` says the half marks' arms stay off the piece.
+type Level = { y: number; kind: 'cross' | 'half' };
+type Mini = {
+  extent: Box; marks: Box; levels: Level[]; outward: boolean; fold: number;
+  front: Face; back: Face;
+};
 
 // Read geometry from the saved PDF's graphics operators, not drawing helpers.
 async function read(bytes: Uint8Array) {
@@ -63,7 +69,7 @@ async function read(bytes: Uint8Array) {
     let matrix: Matrix = [...identity];
     const stack: Matrix[] = [];
     let path: Point[] = [];
-    let closed = false;
+    let segments: Segment[] = [];
     let textMatrix: Matrix = [...identity];
     let size = 0;
     for (let i = 0; i < contents.size(); i++) {
@@ -82,22 +88,16 @@ async function read(bytes: Uint8Array) {
           const origin = point(matrix, e, f);
           matrix = [g * a + j * b, h * a + k * b, g * c + j * d, h * c + k * d, origin.x, origin.y];
         }
-        if (op === 'm') { path = [point(matrix, n[0], n[1])]; closed = false; }
-        if (op === 'l') path.push(point(matrix, n[0], n[1]));
-        if (op === 'h') closed = true;
-        if (op === 'f') {
-          scaleBar.marks.push(bounds(path));
-          path = [];
-          closed = false;
+        if (op === 'm') path.push(point(matrix, n[0], n[1]));
+        if (op === 'l') {
+          const end = point(matrix, n[0], n[1]);
+          segments.push([path[path.length - 1], end]);
+          path.push(end);
         }
-        // Painting ends a path and names it: filled and stroked is a badge,
-        // stroked and closed a tab outline, a stroked segment the fold line.
-        if (op === 'S' || op === 'B') {
-          const role: Role = op === 'B' ? 'badge' : closed ? 'tab' : 'fold';
-          shapes.push({ role, flipped, box: bounds(path) });
-          path = [];
-          closed = false;
-        }
+        if (op === 'f') scaleBar.marks.push(bounds(path));
+        if (op === 'S') shapes.push({ role: 'marks', flipped, box: bounds(path), segments });
+        if (op === 'B') shapes.push({ role: 'badge', flipped, box: bounds(path) });
+        if (op === 'f' || op === 'S' || op === 'B') { path = []; segments = []; }
         if (op === 'Do') shapes.push({ role: 'image', flipped, box: bounds([
           point(matrix, 0, 0), point(matrix, 1, 0), point(matrix, 0, 1), point(matrix, 1, 1),
         ]), mirror: { x: matrix[0] < 0, y: matrix[3] < 0 } });
@@ -130,32 +130,44 @@ async function read(bytes: Uint8Array) {
   };
 }
 
-// drawMini emits one mini's shapes in a run that the fold line closes, so the
-// fold is the separator. Within a run, role and face place every shape.
+// drawMini emits one mini's shapes in a run that its cut marks close, so the
+// marks are the separator. Within a run, role and face place every shape.
 function minis(shapes: Shape[]): Mini[] {
   const runs: Shape[][] = [];
   let run: Shape[] = [];
   for (const shape of shapes) {
     run.push(shape);
-    if (shape.role === 'fold') { runs.push(run); run = []; }
+    if (shape.role === 'marks') { runs.push(run); run = []; }
   }
   return runs.map((group) => {
     const pick = (role: Role, flipped: boolean) => group.find(s => s.role === role && s.flipped === flipped);
-    const tabs = group.filter(s => s.role === 'tab').sort((a, b) => a.box.bottom - b.box.bottom);
-    assert.equal(tabs.length, 2, 'a mini draws two tab outlines');
-    const [bottomTab, topTab] = tabs.map(s => s.box);
-    const fold = pick('fold', false)!.box;
+    const marks = group.find(s => s.role === 'marks')!;
+    const segments = marks.segments!;
+    // The piece's edges are where the vertical arms run.
+    const xs = segments.filter(([a, b]) => a.x === b.x).map(([a]) => a.x);
+    const left = Math.min(...xs);
+    const right = Math.max(...xs);
+    const horizontal = segments.filter(([a, b]) => a.y === b.y)
+      .map(([a, b]) => ({ y: a.y, from: Math.min(a.x, b.x), to: Math.max(a.x, b.x) }));
+    const ys = [...new Set(horizontal.map(h => h.y))].sort((a, b) => a - b);
+    const levels = ys.map((y): Level => ({
+      y,
+      kind: horizontal.some(h => h.y === y && h.from < left && h.to > left) ? 'cross' : 'half',
+    }));
+    const halves = horizontal.filter(h => levels.find(l => l.y === h.y)!.kind === 'half');
+    const outward = halves.every(h => h.to <= left || h.from >= right);
     const face = (flipped: boolean): Face => ({
       image: pick('image', flipped)!.box,
       mirror: pick('image', flipped)!.mirror!,
       badge: pick('badge', flipped)?.box,
       text: pick('text', flipped)?.text,
     });
+    const crosses = levels.filter(l => l.kind === 'cross');
     return {
-      bottomTab, topTab, fold,
-      // The mini's own extent: the fold line runs the full reserved column,
-      // while the tabs mark its bottom and top.
-      extent: { left: fold.left, right: fold.right, bottom: bottomTab.bottom, top: topTab.top },
+      extent: { left, right, bottom: ys[0], top: ys[ys.length - 1] },
+      marks: marks.box, levels, outward,
+      // Of the three crosses, the middle one is the fold between the faces.
+      fold: crosses[1].y,
       front: face(false), back: face(true),
     };
   });
@@ -174,33 +186,38 @@ const wide: Entry = { ...entry, heightSlot: 'medium', artwork: {
   format: 'png', width: 3, height: 2,
 } };
 
-await t('both Tiny badges sit below the artwork in each face orientation', async () => {
+const unfold = (mini: Mini) => ({
+  levels: mini.levels.map(level => asMm(level.y - mini.extent.bottom)),
+  kinds: mini.levels.map(level => level.kind),
+});
+
+await t('a Tiny prints its number once, upright from behind, on the back tab', async () => {
   // #given
   const opts = { pageSize: 'a4', numberDuplicates: true } as const;
   // #when
   const sheet = await read(await generatePDF([entry], opts));
-  // #then
+  // #then  the front tab ends up glued under the floor strip, out of sight
   const [mini] = sheet.minis;
+  const [, , , , backTab] = mini.levels;
   assert.deepEqual({
     minis: sheet.minis.length, shapes: sheet.shapes.length,
-    frontBelow: mini.front.badge!.top < mini.front.image.bottom,
-    backBelow: mini.back.badge!.bottom > mini.back.image.top,
-    frontInside: inside(mini.front.badge!, mini.extent),
-    backInside: inside(mini.back.badge!, mini.extent),
+    frontBadge: mini.front.badge,
+    onBackTab: mini.back.badge!.bottom > backTab.y && mini.back.badge!.top < mini.extent.top,
+    insidePiece: inside(mini.back.badge!, mini.extent),
     labels: sheet.texts.map(text => text.label), directions: sheet.texts.map(text => text.direction),
     readable: sheet.texts.map(text => text.size >= 6),
-    textInsideBadge: [mini.front, mini.back].map((face) =>
-      face.text!.position.x > face.badge!.left && face.text!.position.x < face.badge!.right
-      && face.text!.position.y > face.badge!.bottom && face.text!.position.y < face.badge!.top),
+    textInsideBadge: mini.back.text!.position.x > mini.back.badge!.left
+      && mini.back.text!.position.x < mini.back.badge!.right
+      && mini.back.text!.position.y > mini.back.badge!.bottom
+      && mini.back.text!.position.y < mini.back.badge!.top,
   }, {
-    minis: 1, shapes: 9, // two tabs, two images, two badges, two labels, one fold
-    frontBelow: true, backBelow: true, frontInside: true, backInside: true,
-    labels: ['1', '1'], directions: [1, -1], readable: [true, true],
-    textInsideBadge: [true, true],
+    minis: 1, shapes: 5, // two images, one badge, one label, one path of cut marks
+    frontBadge: undefined, onBackTab: true, insidePiece: true,
+    labels: ['1'], directions: [-1], readable: [true], textInsideBadge: true,
   });
 });
 
-await t('a sliver of Tiny artwork keeps both badges at the right of the base', async () => {
+await t('a sliver of Tiny artwork keeps its badge at the right of the base once folded', async () => {
   // #given
   const tall: Entry = { ...entry, artwork: {
     bytes: Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAABkCAYAAABHLFpgAAAAEklEQVR4nGP4z8Dwn2GUGEkEAJoCxzl9ksz2AAAAAElFTkSuQmCC', 'base64')),
@@ -208,19 +225,18 @@ await t('a sliver of Tiny artwork keeps both badges at the right of the base', a
   } };
   // #when
   const { minis } = await read(await generatePDF([tall], { pageSize: 'a4', numberDuplicates: true }));
-  // #then
+  // #then  the sheet shows the back face from behind, so its right is our left
   const [mini] = minis;
   const middle = (mini.extent.left + mini.extent.right) / 2;
-  assert.deepEqual({
-    frontRight: mini.front.badge!.left > middle && mini.front.badge!.right < mini.extent.right,
-    backRightAfterFolding: mini.back.badge!.right < middle && mini.back.badge!.left > mini.extent.left,
-  }, { frontRight: true, backRightAfterFolding: true });
+  assert.equal(mini.back.badge!.right < middle && mini.back.badge!.left > mini.extent.left, true);
 });
 
 for (const marginMm of [0, 2, 8]) {
-  await t(`badges stay on the sheet's minis with a ${marginMm} mm margin and leave layout unchanged`, async () => {
-    // #given
-    const entries: Entry[] = [{ ...entry, heightSlot: 'large-tall' }, entry];
+  await t(`badges stay on their back tabs with a ${marginMm} mm margin and leave layout unchanged`, async () => {
+    // #given  Gargantuan's tab is the shallowest, so its badge is the tightest fit
+    const entries: Entry[] = [
+      { ...entry, heightSlot: 'large-tall' }, { ...entry, heightSlot: 'gargantuan' }, entry,
+    ];
     const opts = { pageSize: 'a4', marginMm } as const;
     // #when
     const numbered = await read(await generatePDF(entries, { ...opts, numberDuplicates: true }));
@@ -231,33 +247,27 @@ for (const marginMm of [0, 2, 8]) {
       // Numbering adds badges and labels and moves nothing else.
       layout: numbered.shapes.filter(s => s.role !== 'badge' && s.role !== 'text'),
       placement: numbered.minis.map((mini) => [
-        mini.front.badge!.bottom > mini.extent.bottom,
-        mini.front.badge!.top < mini.front.image.bottom,
-        mini.back.badge!.bottom > mini.back.image.top,
+        mini.back.badge!.bottom > mini.levels[4].y,
         mini.back.badge!.top < mini.extent.top,
       ]),
-      // A Tiny's tab shrinks with its figure, so the badge clamp bites hardest
-      // at 0 mm — where nothing else pins how small the digit may get.
       readable: numbered.texts.map(text => text.size >= 6),
       plainLabels: plain.texts,
     }, {
       pages: plain.pages, layout: plain.shapes,
-      placement: [[true, true, true, true], [true, true, true, true]],
-      readable: [true, true, true, true], plainLabels: [],
+      placement: [[true, true], [true, true], [true, true]],
+      readable: [true, true, true], plainLabels: [],
     });
   });
 }
 
-await t('each copy prints its own number on both faces', async () => {
+await t('each copy prints its own number', async () => {
   // #given
   const copies = { ...entry, count: 12 };
   // #when
   const { texts } = await read(await generatePDF([copies], { pageSize: 'a4', numberDuplicates: true }));
   // #then
-  assert.deepEqual(texts.map(text => text.label), [
-    '1', '1', '2', '2', '3', '3', '4', '4', '5', '5', '6', '6',
-    '7', '7', '8', '8', '9', '9', '10', '10', '11', '11', '12', '12',
-  ]);
+  assert.deepEqual(texts.map(text => text.label),
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']);
 });
 
 await t('a height slot prints one figure height for artworks of different proportions', async () => {
@@ -277,42 +287,63 @@ await t('a height slot prints one figure height for artworks of different propor
   );
 });
 
-await t('a tab keeps its base width while the figure overhangs it', async () => {
+// The stand folds as _||_: each face stands on a tab half its base deep, and
+// a floor strip two tabs deep folds under and is glued to both. Printed, that
+// is six lines across the piece, and the marks name each one.
+await t('a Medium unfolds into floor, tabs, faces and fold at half-base steps', async () => {
   // #when
-  const { minis } = await read(await generatePDF([wide], {
-    pageSize: 'a4', numberDuplicates: true, marginMm: 0,
+  const { minis: [mini] } = await read(await generatePDF([{ ...entry, heightSlot: 'medium' }], {
+    pageSize: 'a4', numberDuplicates: false, marginMm: 2,
   }));
-  // #then  Medium's 25 mm base, with the figure's 52.5 mm spread centred over it
-  const [mini] = minis;
+  // #then  25 mm base: 25 mm floor, 12.5 mm tabs, 35 mm faces, 2 mm either
+  //        side of the fold, and the faces stand straight on their tabs
   assert.deepEqual({
-    bottomTab: widthMm(mini.bottomTab), topTab: widthMm(mini.topTab),
-    figure: widthMm(mini.front.image),
-    overhangLeft: asMm(mini.bottomTab.left - mini.front.image.left),
-    overhangRight: asMm(mini.front.image.right - mini.bottomTab.right),
-    tabsAligned: mini.bottomTab.left === mini.topTab.left,
-    // The badge marks the base, so it stays over the tab rather than drifting
-    // out to the overhanging figure's edge.
-    badgeOverBase: [mini.front.badge!, mini.back.badge!].map(badge =>
-      badge.left > mini.bottomTab.left && badge.right < mini.bottomTab.right),
+    ...unfold(mini),
+    frontOnTab: asMm(mini.front.image.bottom - mini.extent.bottom),
+    backUnderTab: asMm(mini.back.image.top - mini.extent.bottom),
   }, {
-    bottomTab: 25, topTab: 25, figure: 52.5, overhangLeft: 13.75, overhangRight: 13.75,
-    tabsAligned: true, badgeOverBase: [true, true],
+    levels: [0, 25, 37.5, 74.5, 111.5, 124],
+    kinds: ['cross', 'half', 'half', 'cross', 'half', 'cross'],
+    frontOnTab: 37.5, backUnderTab: 111.5,
   });
 });
 
-await t('the fold line spans the reserved column, overhang and margins included', async () => {
+await t('Gargantuan stands on the tab the page leaves it', async () => {
   // #when
-  const { minis } = await read(await generatePDF([wide], {
+  const { minis: [mini] } = await read(await generatePDF([{ ...entry, heightSlot: 'gargantuan' }], {
+    pageSize: 'letter', numberDuplicates: false, marginMm: 2,
+  }));
+  // #then  6.5 mm tabs and a 13 mm floor under 111 mm faces, on Letter
+  assert.deepEqual(unfold(mini).levels, [0, 13, 19.5, 132.5, 245.5, 252]);
+});
+
+await t('every strip spans the whole cut-out, overhang and margins included', async () => {
+  // #when
+  const { minis: [mini] } = await read(await generatePDF([wide], {
     pageSize: 'a4', numberDuplicates: false, marginMm: 2,
   }));
-  // #then  the crease has to cross every part of the cut-out, not just the base
-  const [mini] = minis;
+  // #then  the 52.5 mm figure overhangs its 25 mm base, and the piece is the
+  //        figure plus a margin each side, top to bottom
   assert.deepEqual({
-    fold: widthMm(mini.fold), tab: widthMm(mini.bottomTab), figure: widthMm(mini.front.image),
-    crossesFigure: mini.fold.left < mini.front.image.left && mini.fold.right > mini.front.image.right,
-    atVerticalCentre: asMm(mini.fold.bottom - mini.extent.bottom)
-      === asMm(mini.extent.top - mini.fold.top),
-  }, { fold: 56.5, tab: 25, figure: 52.5, crossesFigure: true, atVerticalCentre: true });
+    piece: widthMm(mini.extent), figure: widthMm(mini.front.image),
+    marginLeft: asMm(mini.front.image.left - mini.extent.left),
+    marginRight: asMm(mini.extent.right - mini.front.image.right),
+  }, { piece: 56.5, figure: 52.5, marginLeft: 2, marginRight: 2 });
+});
+
+// Marks drawn onto the piece would stay visible on the cut mini. Crosses sit on
+// the cut line or the fold, where a line belongs anyway; half marks name a fold
+// between strips and must point away from the piece.
+await t('half marks point away from the piece and neighbours never touch', async () => {
+  // #given  a row of copies, so neighbours' marks face each other across the gap
+  const copies: Entry = { ...entry, heightSlot: 'medium', count: 4 };
+  // #when
+  const { minis } = await read(await generatePDF([copies], { pageSize: 'a4', numberDuplicates: false }));
+  // #then
+  assert.deepEqual({
+    outward: minis.map(mini => mini.outward),
+    clear: minis.slice(1).map((mini, i) => mini.marks.left > minis[i].marks.right),
+  }, { outward: [true, true, true, true], clear: [true, true, true] });
 });
 
 await t('the badge marks the base, a fixed step inside it', async () => {
@@ -321,11 +352,11 @@ await t('the badge marks the base, a fixed step inside it', async () => {
   const { minis } = await read(await generatePDF([{ ...entry, heightSlot: 'medium' }], {
     pageSize: 'a4', numberDuplicates: true, marginMm: 2,
   }));
-  // #then
+  // #then  rotated, the base's right corner lands at the sheet's left
   const [mini] = minis;
-  const badge = mini.front.badge!;
+  const badge = mini.back.badge!;
   assert.deepEqual({
-    baseLeftInset: asMm(badge.right + 0.8 * PT_PER_MM - mini.extent.left - 25 * PT_PER_MM),
+    baseLeftInset: asMm(badge.left - 0.8 * PT_PER_MM - mini.extent.left),
     badgeWidth: widthMm(badge),
     badgeHeight: asMm(badge.top - badge.bottom),
   }, { baseLeftInset: 7, badgeWidth: 5.5, badgeHeight: 4.675 });
@@ -363,13 +394,13 @@ await t('the scale bar sits in the top margin, clear of the first row, on both p
   // #when
   const sheets = await Promise.all((['a4', 'letter'] as const).map(async pageSize =>
     read(await generatePDF([tall], { pageSize, numberDuplicates: false }))));
-  // #then  every mark and the note sit above the mini's top tab and to the
-  //        right of the bar, and the note starts after the bar ends
+  // #then  every mark and the note sit above the mini's own cut marks, and
+  //        the note starts after the bar ends
   assert.deepEqual(sheets.map(({ scaleBars: [bar], minis: [mini] }) => {
     const barRight = Math.max(...bar.marks.map(box => box.right));
     return {
-      marksAboveRow: bar.marks.every(box => box.bottom > mini.topTab.top),
-      noteAboveRow: bar.notes.every(note => note.position.y > mini.topTab.top),
+      marksAboveRow: bar.marks.every(box => box.bottom > mini.marks.top),
+      noteAboveRow: bar.notes.every(note => note.position.y > mini.marks.top),
       noteAfterBar: bar.notes.every(note => note.position.x > barRight),
     };
   }), [
@@ -396,7 +427,7 @@ await t('the back face is the front reflected across the fold line', async () =>
     pageSize: 'a4', numberDuplicates: false, marginMm: 2,
   }));
   // #then
-  const foldY = mini.fold.bottom;
+  const foldY = mini.fold;
   assert.deepEqual({
     front: mini.front.mirror, back: mini.back.mirror,
     sameColumn: [mini.back.image.left, mini.back.image.right]

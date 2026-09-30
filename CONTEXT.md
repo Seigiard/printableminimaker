@@ -29,18 +29,18 @@ _Avoid_: Background removal, masking
 Trimming artwork to its figure so the original framing does not affect the printed scale. The figure margin is a separate setting.
 
 **Margin** (figure margin):
-The paper added around each face outside its base width, measured in millimetres and identical for every mini on a sheet. It applies whether normalization is on or off.
+The paper added on both sides of each face, outside its base width, and on each side of the fold, measured in millimetres and identical for every mini on a sheet. It applies whether normalization is on or off.
 _Avoid_: Padding, whitespace, bleed
 
 ### The printed mini
 
 **Mini**:
-One printed, foldable miniature: a figure over its base, front and back, with the tabs and fold that make it stand.
+One printed, foldable miniature: a figure over its base, front and back, with the tabs, floor and fold that make it stand.
 _Avoid_: Miniature, model, token
 
 **Base width**:
-The width of a mini's tab, derived from the size category its height slot carries, or given directly for a custom size. A convention rather than a measurement: it keeps the tab wide enough to stand and signals relative size, and it is not sized to cover a map square. Artwork may be wider and overhang it.
-_Avoid_: Size, width, footprint
+The width of a mini's base, derived from the size category its height slot carries, or given directly for a custom size. A convention rather than a measurement: it sizes the stand and signals relative size, and it is not sized to cover a map square. Each tab is half of it, so the footprint is as deep as it is wide. Artwork may be wider and overhang it.
+_Avoid_: Size, width
 
 **Height slot**:
 What the user picks, and the only input to a mini's scale: a graded real height — nine of them, from 0.6 m to 10 m+ — carrying its figure height in millimetres and the size category it belongs to. The interface states the creature's height and leaves the millimetres to a tooltip, because the millimetres are the consequence rather than the choice. `custom` bypasses the grading and names both numbers directly.
@@ -53,13 +53,19 @@ A named creature size — tiny, small, medium, large, huge, gargantuan. No longe
 How tall a figure prints, fixed by its height slot. It is what scales a mini; the figure's width then follows the artwork's proportions, capped so a spread-out figure cannot run away.
 
 **Fold line**:
-The dotted line at a mini's vertical centre, where front and back meet when folded.
+Where front and back meet when folded, a margin from each face. It is not drawn on the mini; a cross on each edge marks it.
 
 **Tab**:
-The strip at each end of an unfolded mini. Folding brings the two tabs together under the base, doubling their thickness. Normally 8 mm, but under a figure too short to carry that it shrinks with the figure, down to a floor where the fold still has something to grip.
+The strip each face stands on, half the base width deep. The two tabs fold out in opposite directions and together make the footprint. Huge and Gargantuan get shallower tabs, so they still fit on Letter.
+
+**Floor**:
+The strip below the front tab, two tabs deep. The stand folds as `_||_`: the floor folds under both tabs and is glued to them.
+
+**Cut mark**:
+A short grey line outside the mini, in the Printable Heroes style. A cross marks each outer corner and the fold between the faces; a half mark on each edge, pointing away from the mini, marks where a strip folds. Nothing is printed on the mini itself.
 
 **Cut**:
-The path a user's scissors follow. Faint outlines mark the tab boundaries; the figure is cut freehand, leaving a rim with the tabs still attached. The rim retains any artwork background colour.
+The path a user's scissors follow: a rectangle through the cut marks, the figure plus its margins wide, from the floor to the back tab. The rim retains any artwork background colour.
 
 ### The sheet
 

@@ -9,10 +9,16 @@ import {
   pushGraphicsState,
   popGraphicsState,
   concatTransformationMatrix,
+  moveTo,
+  lineTo,
+  stroke,
+  setLineWidth,
+  setStrokingGrayscaleColor,
 } from 'pdf-lib';
 import type { PreparedArtwork, Entry } from './types';
 import { hasPackableDimensions } from './sizes.ts';
 import {
+  CUT_MARK_ARM_MM,
   GAP_MM,
   MARGIN_MM,
   PAGE_SIZES_MM,
@@ -28,9 +34,7 @@ const MM_TO_PT = 72 / 25.4;
 const mm = (v: number) => v * MM_TO_PT;
 
 const STROKE_MM = 0.2;
-const LIGHT_GREY = rgb(0.7, 0.7, 0.7);
-const DASH_ON_MM = 1;
-const DASH_OFF_MM = 1;
+const MARK_GREY = 0.5;
 
 // The scale check printed in each sheet's top margin. A print dialog left on
 // "Fit to page" shrinks the whole sheet by a few per cent, which no amount of
@@ -120,73 +124,40 @@ function drawMini(
   const yBottomMm = yTopMm - mini.totalHeightMm;
   const x = mm(xMm);
   const yBottom = mm(yBottomMm);
-  const w = mm(mini.totalWidthMm);
   const iw = mm(mini.imageWidthMm);
-  const tabW = mm(mini.tabWidthMm);
   const offX = mm(mini.imageOffsetXMm);
-  const totalH = mm(mini.totalHeightMm);
   const tab = mm(mini.tabHeightMm);
   const imgH = mm(mini.imageHeightMm);
   const margin = mm(mini.marginMm);
-  const stroke = mm(STROKE_MM);
 
-  // Bottom-up: tab, margin, front image, margin, fold,
-  // margin, mirrored back image, margin, tab.
+  // Bottom-up: floor strip (two tabs deep), front tab, front image, margin,
+  // fold, margin, mirrored back image, back tab. The figures stand straight on
+  // their tabs, so the fold under each one is the figure's own bottom edge.
+  const frontBottom = yBottom + tab * 3;
 
-  // Cut guides for both tabs; cut around the figures freehand. A tab is the
-  // base's width, so a figure may overhang it on both sides.
-  const baseX = x + mm(mini.baseOffsetXMm);
-  const tabX = x + mm(mini.tabOffsetXMm);
-  for (const y of [yBottom, yBottom + totalH - tab]) {
-    pdfPage.drawRectangle({
-      x: tabX,
-      y,
-      width: tabW,
-      height: tab,
-      borderColor: LIGHT_GREY,
-      borderWidth: stroke,
-    });
-  }
-
-  // Front image — centered horizontally over the base footprint.
   pdfPage.drawImage(pdfImage, {
     x: x + offX,
-    y: yBottom + tab + margin,
+    y: frontBottom,
     width: iw,
     height: imgH,
   });
-
-  // Front label — below the image, extending into the tab if the margin is
-  // narrow. The tab shrinks under a short figure, so the badge is told how much
-  // room it has rather than assuming a full one.
-  const labelRoomMm = mini.marginMm + mini.tabHeightMm;
-  if (mini.label) {
-    drawLabelBadge(
-      pdfPage,
-      mini.label,
-      font,
-      mini.baseWidthMm,
-      labelRoomMm,
-      baseX,
-      yBottom + tab + margin,
-    );
-  }
 
   // Back image — the front reflected across the fold line, top to bottom only.
   // Folding is that same reflection, so the two outlines land on each other and
   // cut as one; a 180° rotation would land them mirrored left to right.
   // CTM [1 0 0 -1 e f] maps (px,py) → (e+px, f-py), so an image drawn at (0,0)
-  // sized iw×imgH fills (e, f-imgH) to (e+iw, f), one margin below the top tab.
-  const backTop = yBottom + tab + imgH * 2 + margin * 3;
+  // sized iw×imgH fills (e, f-imgH) to (e+iw, f), right under the back tab.
+  const backTop = frontBottom + imgH * 2 + margin * 2;
   pdfPage.pushOperators(pushGraphicsState());
   pdfPage.pushOperators(concatTransformationMatrix(1, 0, 0, -1, x + offX, backTop));
   pdfPage.drawImage(pdfImage, { x: 0, y: 0, width: iw, height: imgH });
   pdfPage.pushOperators(popGraphicsState());
 
-  // Back label — under a 180° rotation rather than the mirror, because text
-  // mirrored by the fold reads backwards. Fold plus walking around the mini is
-  // a rotation, so rotated text reads upright from behind, and the same local
-  // coords as the front put it at the bottom-right of the back face.
+  // The number sits on the back tab only: the front tab ends up under the
+  // floor strip, glued out of sight. It is drawn under a 180° rotation rather
+  // than the mirror, because text mirrored by the fold reads backwards. Fold
+  // plus walking around the mini is a rotation, so rotated text reads upright
+  // from behind, and face-local "below the image" is the back tab.
   // CTM [-1 0 0 -1 e f] maps (px,py) → (e-px, f-py) over the same rectangle.
   if (mini.label) {
     pdfPage.pushOperators(pushGraphicsState());
@@ -194,26 +165,54 @@ function drawMini(
       concatTransformationMatrix(-1, 0, 0, -1, x + offX + iw, backTop),
     );
     // The same centring as `baseOffsetXMm`, but measured from the image's own
-    // origin, which is where the flipped frame puts zero.
+    // origin, which is where the rotated frame puts zero.
     const baseFromImageX = mm((mini.imageWidthMm - mini.baseWidthMm) / 2);
-    drawLabelBadge(pdfPage, mini.label, font, mini.baseWidthMm, labelRoomMm, baseFromImageX, 0);
+    drawLabelBadge(pdfPage, mini.label, font, mini.baseWidthMm, mini.tabHeightMm, baseFromImageX, 0);
     pdfPage.pushOperators(popGraphicsState());
   }
 
-  // Fold line — dotted, at the unfolded mini's vertical centre. It spans the
-  // reserved column rather than the tab: the crease has to cross every part of
-  // the cut-out piece, an overhanging figure's wings included.
-  const foldY = yBottom + tab + imgH + margin * 2;
-  pdfPage.drawLine({
-    start: { x, y: foldY },
-    end: { x: x + w, y: foldY },
-    thickness: stroke,
-    color: LIGHT_GREY,
-    dashArray: [mm(DASH_ON_MM), mm(DASH_OFF_MM)],
-  });
+  drawCutMarks(pdfPage, mini, x, yBottom);
 }
 
-// Filled shapes only, drawn after the minis: a stroke would read as a fold line.
+// Cut marks in the Printable Heroes style, drawn outside the piece so no line
+// is left on it once cut: a cross at each outer corner and at the fold between
+// the faces, and a half mark on each edge where a strip folds. The piece is
+// the whole column, so every strip is as wide as the figure's margins.
+// All of it is one stroked path, drawn last, which is how pdf.test.ts finds
+// where one mini ends.
+function drawCutMarks(pdfPage: PDFPage, mini: PackedMini, x: number, yBottom: number) {
+  const tab = mm(mini.tabHeightMm);
+  const arm = mm(CUT_MARK_ARM_MM);
+  const left = x;
+  const right = x + mm(mini.totalWidthMm);
+  const fold = yBottom + tab * 3 + mm(mini.imageHeightMm + mini.marginMm);
+  const top = yBottom + mm(mini.totalHeightMm);
+  const crosses = [yBottom, fold, top];
+  const halves = [yBottom + tab * 2, yBottom + tab * 3, top - tab];
+
+  const ops = [
+    pushGraphicsState(),
+    setLineWidth(mm(STROKE_MM)),
+    setStrokingGrayscaleColor(MARK_GREY),
+  ];
+  const segment = (x1: number, y1: number, x2: number, y2: number) =>
+    ops.push(moveTo(x1, y1), lineTo(x2, y2));
+  for (const edge of [left, right]) {
+    const outward = edge === left ? -arm : arm;
+    for (const y of crosses) {
+      segment(edge - arm, y, edge + arm, y);
+      segment(edge, y - arm, edge, y + arm);
+    }
+    for (const y of halves) {
+      segment(edge, y, edge + outward, y);
+      segment(edge, y - arm, edge, y + arm);
+    }
+  }
+  ops.push(stroke(), popGraphicsState());
+  pdfPage.pushOperators(...ops);
+}
+
+// Filled shapes only, drawn after the minis: a stroke would read as a cut mark.
 function drawScaleBar(pdfPage: PDFPage, pageHmm: number, font: PDFFont) {
   const barY = pageHmm - SCALE_BAR_Y_FROM_TOP_MM;
   const color = rgb(0, 0, 0);
@@ -249,11 +248,10 @@ function drawScaleBar(pdfPage: PDFPage, pageHmm: number, font: PDFFont) {
 
 // Draws a white number badge below the base's right edge. boxX is the base's
 // left edge and boxY is the image's bottom, in pt and face-local coordinates.
-// `roomMm` is the paper below the image — the figure margin plus the tab — and
-// the badge shrinks to stay inside it, clear of the cut edge at both ends.
-// Without that a Tiny at zero margin would hang its badge off the mini. The
+// `roomMm` is the tab below the image, and the badge shrinks to stay inside it,
+// clear of the cut edge at both ends — Gargantuan's tab is only 6.5 mm. The
 // clearance yields with the room for the same reason: held at a flat 0.8 mm it
-// eats a fifth of a shrunken tab, and the digit inside drops below the 6 pt
+// eats too much of a shallow tab, and the digit inside drops below the 6 pt
 // this file's tests treat as the floor for a readable number.
 function drawLabelBadge(
   pdfPage: PDFPage,

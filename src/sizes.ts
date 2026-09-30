@@ -5,9 +5,9 @@ export type FigureFitMm = { imageWidthMm: number; imageHeightMm: number };
 
 // ADR-0002: base width is a convention, not a measurement. A creature's space
 // is the area it controls in combat, explicitly not its physical size, and the
-// rules give no creature height at all. Its remaining jobs are to keep a tab
-// wide enough to stand and to signal relative size, which the six categories
-// still do well enough — so the category is what fixes it, and every slot that
+// rules give no creature height at all. Its remaining jobs are to size the
+// stand and to signal relative size, which the six categories still do well
+// enough — so the category is what fixes it, and every slot that
 // carries the category inherits the number.
 export const CATEGORY_BASE_WIDTH_MM: Record<SizeCategory, number> = {
   tiny: 20,
@@ -16,6 +16,24 @@ export const CATEGORY_BASE_WIDTH_MM: Record<SizeCategory, number> = {
   large: 37,
   huge: 50,
   gargantuan: 75,
+};
+
+// The stand folds as _||_: the front and back tabs fold out under the figure,
+// and the floor strip below the front tab, two tabs deep, folds under and is
+// glued to both. So a tab is half the base, and the two together make the
+// footprint as deep as it is wide.
+//
+// Huge and Gargantuan are page-bound here as their heights are: at half their
+// bases neither fits Letter at any margin. Their tabs are cut to what keeps
+// them on Letter through a 5 mm figure margin, so a Gargantuan stands on a
+// shallow 75 × 13 mm footprint rather than falling off the sheet.
+export const CATEGORY_TAB_HEIGHT_MM: Record<SizeCategory, number> = {
+  tiny: 10,
+  small: 12.5,
+  medium: 12.5,
+  large: 18.5,
+  huge: 14.5,
+  gargantuan: 6.5,
 };
 
 export const CATEGORY_NAMES: Record<SizeCategory, string> = {
@@ -46,12 +64,8 @@ export type HeightSlotSpec = {
 // held linear from Tiny up to the tall Large slot.
 //
 // The top two rows leave that line, because the paper runs out before the
-// creatures do. An unfolded mini costs 2h + 4×margin + 2×tab, so every extra
-// millimetre of figure margin costs four of height: a row tuned to the very edge
-// of the page at the default 2 mm margin falls off it the moment the user widens
-// the margin to cut more comfortably. Gargantuan is therefore cut to 111 rather
-// than the 206 the linear scale asks for, which leaves it printable through a
-// 5 mm margin on Letter, the smaller of the two pages.
+// creatures do. Gargantuan is cut to 111 rather than the 206 the linear scale
+// asks for; its tab gives up the rest of the page (CATEGORY_TAB_HEIGHT_MM).
 //
 // Huge's own linear 124 does not fit Letter at any margin, so it is paper-bound
 // too. It sits at 95 rather than just under Gargantuan, because two rows 5%
@@ -59,10 +73,6 @@ export type HeightSlotSpec = {
 // side, to the tall Large below and Gargantuan above. The cost is that the top
 // of the scale means rank rather than height: 4 m, 6 m and 10 m+ print at 82,
 // 95 and 111. Every other row is the linear value rounded.
-//
-// The small end stays on the line rather than being inflated as the six-row
-// table inflated Tiny, because the tab gives way instead: `tabHeightMm` in
-// packing.ts shrinks it under a short figure. See ADR-0002 on the tab floor.
 export const HEIGHT_SLOTS: Record<HeightSlot, HeightSlotSpec> = {
   'tiny': { category: 'tiny', realHeight: '0.6 m', typical: 'familiar, imp, hawk', figureHeightMm: 12 },
   'small': { category: 'small', realHeight: '0.95 m', typical: 'halfling, gnome, wolf', figureHeightMm: 20 },
@@ -129,6 +139,12 @@ export function resolveFigureHeightMm(e: Pick<Entry, 'heightSlot' | 'customHeigh
 export function resolveBaseWidthMm(e: Pick<Entry, 'heightSlot' | 'customWidthMm'>): number {
   if (e.heightSlot === 'custom') return validDimension(e.customWidthMm);
   return CATEGORY_BASE_WIDTH_MM[HEIGHT_SLOTS[e.heightSlot].category];
+}
+
+// A custom entry's tab is half its own base; only the slots carry page-bound caps.
+export function resolveTabHeightMm(e: Pick<Entry, 'heightSlot' | 'customWidthMm'>): number {
+  if (e.heightSlot === 'custom') return resolveBaseWidthMm(e) / 2;
+  return CATEGORY_TAB_HEIGHT_MM[HEIGHT_SLOTS[e.heightSlot].category];
 }
 
 // Resolves both columns for one entry. Returns a zero in either slot when the
