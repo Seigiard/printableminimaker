@@ -41,10 +41,11 @@ type Role = 'marks' | 'badge' | 'image' | 'text';
 type Text = { label: string; size: number; direction: number; position: Point };
 type Mirror = { x: boolean; y: boolean };
 type Segment = [Point, Point];
-type Shape = { role: Role; flipped: boolean; box: Box; text?: Text; mirror?: Mirror; segments?: Segment[] };
+type Shape = { role: Role; flipped: boolean; box: Box; text?: Text; mirror?: Mirror; segments?: Segment[]; xobject?: string };
 type ScaleBar = { page: number; marks: Box[]; notes: Text[] };
 
-type Face = { image: Box; mirror: Mirror; badge?: Box; text?: Text };
+// `xobject` names the embedded image a face draws, so tests can tell artworks apart.
+type Face = { image: Box; mirror: Mirror; xobject: string; badge?: Box; text?: Text };
 // A level is a height where the cut marks name a line across the piece: a
 // cross where the piece is cut or folds between the faces, a half mark where a
 // strip folds. `outward` says the half marks' arms stay off the piece.
@@ -59,10 +60,19 @@ async function read(bytes: Uint8Array) {
   const pdf = await PDFDocument.load(bytes);
   const shapes: Shape[] = [];
   const scaleBars: ScaleBar[] = [];
+  // pdf-lib gives every draw its own random resource name, so an image is
+  // known by the object its name points at, numbered in order of first use.
+  const xobjects = new Map<string, string>();
+  const xobject = (resources: PDFDict, name: string) => {
+    const ref = String(resources.get(PDFName.of(name.slice(1))));
+    if (!xobjects.has(ref)) xobjects.set(ref, `image-${xobjects.size}`);
+    return xobjects.get(ref)!;
+  };
   for (const [pageIndex, page] of pdf.getPages().entries()) {
     const scaleBar: ScaleBar = { page: pageIndex, marks: [], notes: [] };
     scaleBars.push(scaleBar);
     const fonts = page.node.Resources()!.lookup(PDFName.of('Font'), PDFDict);
+    const images = page.node.Resources()!.lookup(PDFName.of('XObject'), PDFDict);
     let baseFont = '';
     const contents = page.node.Contents();
     assert.ok(contents instanceof PDFArray);
@@ -100,7 +110,7 @@ async function read(bytes: Uint8Array) {
         if (op === 'f' || op === 'S' || op === 'B') { path = []; segments = []; }
         if (op === 'Do') shapes.push({ role: 'image', flipped, box: bounds([
           point(matrix, 0, 0), point(matrix, 1, 0), point(matrix, 0, 1), point(matrix, 1, 1),
-        ]), mirror: { x: matrix[0] < 0, y: matrix[3] < 0 } });
+        ]), mirror: { x: matrix[0] < 0, y: matrix[3] < 0 }, xobject: xobject(images, tokens[0]) });
         if (op === 'Tf') {
           size = n[1];
           baseFont = fonts.lookup(PDFName.of(tokens[0].slice(1)), PDFDict)
@@ -159,6 +169,7 @@ function minis(shapes: Shape[]): Mini[] {
     const face = (flipped: boolean): Face => ({
       image: pick('image', flipped)!.box,
       mirror: pick('image', flipped)!.mirror!,
+      xobject: pick('image', flipped)!.xobject!,
       badge: pick('badge', flipped)?.box,
       text: pick('text', flipped)?.text,
     });
@@ -430,14 +441,107 @@ await t('the back face is the front reflected across the fold line', async () =>
   const foldY = mini.fold;
   assert.deepEqual({
     front: mini.front.mirror, back: mini.back.mirror,
+    sameArtwork: mini.back.xobject === mini.front.xobject,
     sameColumn: [mini.back.image.left, mini.back.image.right]
       .map(asMm).join() === [mini.front.image.left, mini.front.image.right].map(asMm).join(),
     gapBelowFold: asMm(foldY - mini.front.image.top),
     gapAboveFold: asMm(mini.back.image.bottom - foldY),
   }, {
     front: { x: false, y: false }, back: { x: false, y: true },
+    sameArtwork: true,
     sameColumn: true, gapBelowFold: 2, gapAboveFold: 2,
   });
+});
+
+// A back artwork is drawn as the creature looks from behind, so after the fold
+// it must read the right way round from behind. A reflection would show it
+// mirrored; a 180° rotation, the same one the badge uses, does not.
+const withBack: Entry = { ...entry, heightSlot: 'medium',
+  backImage: new File([], 'back.png'), backArtwork: wide.artwork };
+
+await t('a back artwork prints rotated half a turn, standing on the back tab', async () => {
+  // #given  a square front and a 3:2 back at Medium, 35 and 52.5 mm wide
+  // #when
+  const { minis: [mini] } = await read(await generatePDF([withBack], {
+    pageSize: 'a4', numberDuplicates: true, marginMm: 2,
+  }));
+  // #then  the cut holds the wider back; the front is centred on it
+  const [, , , , backTab] = mini.levels;
+  assert.deepEqual({
+    front: mini.front.mirror, back: mini.back.mirror,
+    ...unfold(mini),
+    piece: widthMm(mini.extent),
+    frontInset: asMm(mini.front.image.left - mini.extent.left), frontWidth: widthMm(mini.front.image),
+    backInset: asMm(mini.back.image.left - mini.extent.left), backWidth: widthMm(mini.back.image),
+    backOnTab: asMm(backTab.y - mini.back.image.top),
+    sameArtwork: mini.back.xobject === mini.front.xobject,
+    badgeOnBackTab: mini.back.badge!.bottom > backTab.y && mini.back.badge!.top < mini.extent.top,
+    // The base is centred in the 52.5 mm column, not under the 35 mm front.
+    baseLeftInset: asMm(mini.back.badge!.left - 0.8 * PT_PER_MM - mini.extent.left),
+  }, {
+    front: { x: false, y: false }, back: { x: true, y: true },
+    levels: [0, 25, 37.5, 74.5, 111.5, 124],
+    kinds: ['cross', 'half', 'half', 'cross', 'half', 'cross'],
+    piece: 56.5, frontInset: 10.75, frontWidth: 35, backInset: 2, backWidth: 52.5,
+    backOnTab: 0, sameArtwork: false, badgeOnBackTab: true, baseLeftInset: 15.75,
+  });
+});
+
+await t('a back artwork the width cap shortens keeps the halves equal and its feet on the tab', async () => {
+  // #given  a 4:1 back prints 52.5 x 13.125 mm behind a 35 mm square front
+  const short: Entry = { ...withBack, backArtwork: {
+    bytes: Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAQAAAABCAIAAAB2XpiaAAAAC0lEQVR4nGNgQAIAAA0AATBGj/4AAAAASUVORK5CYII=', 'base64')),
+    format: 'png', width: 4, height: 1,
+  } };
+  // #when
+  const { minis: [mini] } = await read(await generatePDF([short], {
+    pageSize: 'a4', numberDuplicates: false, marginMm: 2,
+  }));
+  // #then  blank paper is left by the fold, not under the feet
+  const [, , , , backTab] = mini.levels;
+  assert.deepEqual({
+    levels: unfold(mini).levels,
+    backHeight: asMm(mini.back.image.top - mini.back.image.bottom),
+    backOnTab: asMm(backTab.y - mini.back.image.top),
+  }, { levels: [0, 25, 37.5, 74.5, 111.5, 124], backHeight: 13.125, backOnTab: 0 });
+});
+
+await t('a front the width cap shortens stands on its tab, and the back still meets its own', async () => {
+  // #given  a 4:1 front prints 52.5 x 13.125 mm before a 35 mm square back
+  const shortFront: Entry = { ...withBack,
+    artwork: {
+      bytes: Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAQAAAABCAIAAAB2XpiaAAAAC0lEQVR4nGNgQAIAAA0AATBGj/4AAAAASUVORK5CYII=', 'base64')),
+      format: 'png', width: 4, height: 1,
+    },
+    backArtwork: entry.artwork };
+  // #when
+  const { minis: [mini] } = await read(await generatePDF([shortFront], {
+    pageSize: 'a4', numberDuplicates: false, marginMm: 2,
+  }));
+  // #then  both halves are 35 mm faces, so the fold and the back tab do not move
+  const [, , frontTab, , backTab] = mini.levels;
+  assert.deepEqual({
+    levels: unfold(mini).levels,
+    front: [asMm(mini.front.image.bottom - frontTab.y), asMm(mini.front.image.top - mini.front.image.bottom)],
+    back: [asMm(backTab.y - mini.back.image.top), asMm(mini.back.image.top - mini.back.image.bottom)],
+  }, {
+    levels: [0, 25, 37.5, 74.5, 111.5, 124],
+    front: [0, 13.125], back: [0, 35],
+  });
+});
+
+await t('one sheet mixes reflected and rotated backs, and waits for a back still loading', async () => {
+  // #given  a back still loading, then a plain entry, then one with its back
+  const loading: Entry = { ...withBack, backArtwork: null };
+  // #when
+  const { minis } = await read(await generatePDF([loading, { ...entry, heightSlot: 'medium' }, withBack], {
+    pageSize: 'a4', numberDuplicates: false,
+  }));
+  // #then  packing puts the wider mini first
+  assert.deepEqual(minis.map(mini => [mini.back.mirror, widthMm(mini.back.image)]), [
+    [{ x: true, y: true }, 52.5],
+    [{ x: false, y: true }, 35],
+  ]);
 });
 
 console.log(`\n${passed} passed`);

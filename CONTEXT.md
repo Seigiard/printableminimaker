@@ -7,8 +7,14 @@ Turns uploaded artwork into print-ready PDFs of foldable paper miniatures for ta
 ### The artwork
 
 **Artwork**:
-The image a user uploads for one entry. Stays untouched so any derived image can be recomputed.
+An image a user uploads for an entry. Stays untouched so any derived image can be recomputed. Unqualified, it means the front artwork.
 _Avoid_: Picture, asset, source
+
+**Front artwork**:
+The artwork every entry has. It prints on the front face, and on the back face too when the entry has no back artwork.
+
+**Back artwork**:
+An optional second artwork for an entry, drawn as the creature looks from behind. When present it prints on the back face so it reads correctly from behind the standing mini; when absent the back face shows the front artwork as the fold reflects it. Trimmed independently of the front artwork.
 
 **Figure**:
 The pixels of the artwork that depict the creature, as opposed to its background.
@@ -52,6 +58,10 @@ A named creature size — tiny, small, medium, large, huge, gargantuan. No longe
 **Figure height**:
 How tall a figure prints, fixed by its height slot. It is what scales a mini; the figure's width then follows the artwork's proportions, capped so a spread-out figure cannot run away.
 
+**Face**:
+One of a mini's two printed sides, front or back, each standing on its own tab. Both faces are sized from the same height slot, and the cut is as wide as the wider of the two.
+_Avoid_: Side
+
 **Fold line**:
 Where front and back meet when folded, a margin from each face. It is not drawn on the mini; a cross on each edge marks it.
 
@@ -65,7 +75,7 @@ The strip below the front tab, two tabs deep. The stand folds as `_||_`: the flo
 A short grey line outside the mini, in the Printable Heroes style. A cross marks each outer corner and the fold between the faces; a half mark on each edge, pointing away from the mini, marks where a strip folds. Nothing is printed on the mini itself.
 
 **Cut**:
-The path a user's scissors follow: a rectangle through the cut marks, the figure plus its margins wide, from the floor to the back tab. The rim retains any artwork background colour.
+The path a user's scissors follow: a rectangle through the cut marks, the wider face plus its margins wide, from the floor to the back tab. The rim retains any artwork background colour.
 
 ### The sheet
 
@@ -77,5 +87,5 @@ _Avoid_: Page
 The space between neighbouring minis on a sheet. Wide enough that cutting one mini's margin never reaches its neighbour.
 
 **Entry**:
-One row of the user's input: artwork, a height slot, and a number of copies. Expands into that many minis when packed.
+One row of the user's input: front artwork, an optional back artwork, a height slot, and a number of copies. Expands into that many minis when packed.
 _Avoid_: Row, item

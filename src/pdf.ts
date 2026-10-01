@@ -22,7 +22,9 @@ import {
   GAP_MM,
   MARGIN_MM,
   PAGE_SIZES_MM,
+  isBackArtworkLoading,
   packEntries,
+  type BackFace,
   type PackOptions,
   type PackedMini,
   type PageSizeKey,
@@ -62,7 +64,7 @@ export async function generatePDF(
   // undrawn. The packer's other drop path — a mini too large for the page —
   // still slips through here, so an oversized row costs its bytes.
   const valid = entries.filter(
-    (e) => e.artwork && e.count > 0 && hasPackableDimensions(e),
+    (e) => e.artwork && e.count > 0 && hasPackableDimensions(e) && !isBackArtworkLoading(e),
   ).map((e) => ({ ...e }));
   if (valid.length === 0) throw new Error('No valid entries to generate.');
 
@@ -77,11 +79,10 @@ export async function generatePDF(
   const noteFont = await pdf.embedFont(StandardFonts.Helvetica);
 
   // Embed each unique artwork once, keyed by its position in `valid` so packing's
-  // entryIndex maps straight back to the embedded image.
-  const images: PDFImage[] = [];
+  // entryIndex maps straight back to the embedded images.
+  const faces: FaceImages[] = [];
   const cache = new Map<PreparedArtwork, PDFImage>();
-  for (const e of valid) {
-    const artwork = e.artwork!;
+  const embed = async (artwork: PreparedArtwork) => {
     let img = cache.get(artwork);
     if (!img) {
       img = await (artwork.format === 'jpg'
@@ -89,7 +90,13 @@ export async function generatePDF(
         : pdf.embedPng(artwork.bytes));
       cache.set(artwork, img);
     }
-    images.push(img);
+    return img;
+  };
+  for (const e of valid) {
+    faces.push({
+      front: await embed(e.artwork!),
+      back: e.backArtwork ? await embed(e.backArtwork) : undefined,
+    });
   }
 
   const { pages } = packEntries(valid, opts);
@@ -102,7 +109,7 @@ export async function generatePDF(
     for (const row of page.rows) {
       let xMm = MARGIN_MM;
       for (const mini of row.items) {
-        drawMini(pdfPage, mini, images[mini.entryIndex], xMm, yTopMm, font);
+        drawMini(pdfPage, mini, faces[mini.entryIndex], xMm, yTopMm, font);
         xMm += mini.totalWidthMm + GAP_MM;
       }
       yTopMm -= row.heightMm + GAP_MM;
@@ -113,10 +120,12 @@ export async function generatePDF(
   return pdf.save();
 }
 
+type FaceImages = { front: PDFImage; back?: PDFImage };
+
 function drawMini(
   pdfPage: PDFPage,
   mini: PackedMini,
-  pdfImage: PDFImage,
+  images: FaceImages,
   xMm: number,
   yTopMm: number,
   font: PDFFont,
@@ -128,29 +137,44 @@ function drawMini(
   const offX = mm(mini.imageOffsetXMm);
   const tab = mm(mini.tabHeightMm);
   const imgH = mm(mini.imageHeightMm);
+  const faceH = mm(mini.faceHeightMm);
   const margin = mm(mini.marginMm);
 
-  // Bottom-up: floor strip (two tabs deep), front tab, front image, margin,
-  // fold, margin, mirrored back image, back tab. The figures stand straight on
-  // their tabs, so the fold under each one is the figure's own bottom edge.
+  // Bottom-up: floor strip (two tabs deep), front tab, front face, margin,
+  // fold, margin, back face, back tab. The figures stand straight on their
+  // tabs, so a figure shorter than its face leaves paper by the fold instead.
   const frontBottom = yBottom + tab * 3;
 
-  pdfPage.drawImage(pdfImage, {
+  pdfPage.drawImage(images.front, {
     x: x + offX,
     y: frontBottom,
     width: iw,
     height: imgH,
   });
 
-  // Back image — the front reflected across the fold line, top to bottom only.
-  // Folding is that same reflection, so the two outlines land on each other and
-  // cut as one; a 180° rotation would land them mirrored left to right.
-  // CTM [1 0 0 -1 e f] maps (px,py) → (e+px, f-py), so an image drawn at (0,0)
-  // sized iw×imgH fills (e, f-imgH) to (e+iw, f), right under the back tab.
-  const backTop = frontBottom + imgH * 2 + margin * 2;
+  // Either way the back image fills (x + backOffX, backTop - h) to
+  // (x + backOffX + backW, backTop), right under the back tab, so the figure's
+  // feet touch it.
+  const backTop = frontBottom + faceH * 2 + margin * 2;
+  // Packing sets `mini.back` exactly when the entry has back artwork, and
+  // `images.back` comes from the same artwork.
+  const back: BackFace = mini.back ?? mini;
+  const backW = mm(back.imageWidthMm);
+  const backOffX = mm(back.imageOffsetXMm);
   pdfPage.pushOperators(pushGraphicsState());
-  pdfPage.pushOperators(concatTransformationMatrix(1, 0, 0, -1, x + offX, backTop));
-  pdfPage.drawImage(pdfImage, { x: 0, y: 0, width: iw, height: imgH });
+  if (images.back) {
+    // The back artwork is drawn as seen from behind. Fold plus walking round
+    // the mini is a 180° rotation, so rotated it reads the right way round.
+    // CTM [-1 0 0 -1 e f] maps (px,py) → (e-px, f-py).
+    pdfPage.pushOperators(concatTransformationMatrix(-1, 0, 0, -1, x + backOffX + backW, backTop));
+  } else {
+    // The front reflected across the fold line, top to bottom only. Folding is
+    // that same reflection, so the two outlines land on each other and cut as
+    // one; a 180° rotation would land them mirrored left to right.
+    // CTM [1 0 0 -1 e f] maps (px,py) → (e+px, f-py).
+    pdfPage.pushOperators(concatTransformationMatrix(1, 0, 0, -1, x + backOffX, backTop));
+  }
+  pdfPage.drawImage(images.back ?? images.front, { x: 0, y: 0, width: backW, height: mm(back.imageHeightMm) });
   pdfPage.pushOperators(popGraphicsState());
 
   // The number sits on the back tab only: the front tab ends up under the
@@ -162,11 +186,11 @@ function drawMini(
   if (mini.label) {
     pdfPage.pushOperators(pushGraphicsState());
     pdfPage.pushOperators(
-      concatTransformationMatrix(-1, 0, 0, -1, x + offX + iw, backTop),
+      concatTransformationMatrix(-1, 0, 0, -1, x + backOffX + backW, backTop),
     );
-    // The same centring as `baseOffsetXMm`, but measured from the image's own
-    // origin, which is where the rotated frame puts zero.
-    const baseFromImageX = mm((mini.imageWidthMm - mini.baseWidthMm) / 2);
+    // The same centring as `baseOffsetXMm`, but measured from the back image's
+    // own origin, which is where the rotated frame puts zero.
+    const baseFromImageX = mm((back.imageWidthMm - mini.baseWidthMm) / 2);
     drawLabelBadge(pdfPage, mini.label, font, mini.baseWidthMm, mini.tabHeightMm, baseFromImageX, 0);
     pdfPage.pushOperators(popGraphicsState());
   }
@@ -185,7 +209,7 @@ function drawCutMarks(pdfPage: PDFPage, mini: PackedMini, x: number, yBottom: nu
   const arm = mm(CUT_MARK_ARM_MM);
   const left = x;
   const right = x + mm(mini.totalWidthMm);
-  const fold = yBottom + tab * 3 + mm(mini.imageHeightMm + mini.marginMm);
+  const fold = yBottom + tab * 3 + mm(mini.faceHeightMm + mini.marginMm);
   const top = yBottom + mm(mini.totalHeightMm);
   const crosses = [yBottom, fold, top];
   const halves = [yBottom + tab * 2, yBottom + tab * 3, top - tab];

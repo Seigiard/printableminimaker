@@ -84,4 +84,23 @@ t('a custom entry carries both of its dimensions into the fit and the stand', ()
     [45, 45, 30, 15]);
 });
 
+t('an entry waits while its back artwork loads', () => {
+  // #given  a back file is chosen but not prepared yet
+  const e: Entry = { ...entry(1), backImage: new File([], 'back.png') };
+  // #when
+  const result = packEntries([e], opts);
+  // #then
+  assert.deepEqual([result.miniCount, result.pageCount], [0, 0]);
+});
+
+t('prepared back artwork proportions reach fitting through packEntries', () => {
+  // #given  a 3:2 back behind a square front at Medium
+  const e: Entry = { ...entry(1), backImage: new File([], 'back.png'),
+    backArtwork: { ...square, width: 150, height: 100 } };
+  // #when
+  const mini = packEntries([e], opts).pages[0].rows[0].items[0];
+  // #then
+  assert.deepEqual([mini.totalWidthMm, mini.back?.imageWidthMm], [52.5, 52.5]);
+});
+
 console.log(`\n${passed} passed`);

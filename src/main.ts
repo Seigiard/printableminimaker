@@ -144,7 +144,7 @@ async function setImage(entry: Entry, file: File) {
     entry.artwork = artwork;
     entry.normalizationWarning = warning;
     // Patch only this thumbnail so a late load preserves focus in editable fields.
-    const thumb = rowEls[rows.indexOf(entry)]?.querySelector('.thumb');
+    const thumb = rowEls[rows.indexOf(entry)]?.querySelector('.front-thumb');
     if (thumb) {
       thumb.querySelector('img')?.remove();
       thumb.prepend(artworkImage(artwork));
@@ -155,6 +155,59 @@ async function setImage(entry: Entry, file: File) {
     showStatus('Couldn’t load image: ' + (err instanceof Error ? err.message : String(err)), 'error');
   }
 }
+
+const backArtworkLoads = new WeakMap<Entry, object>();
+
+async function setBackImage(entry: Entry, file: File) {
+  const load = {};
+  backArtworkLoads.set(entry, load);
+  const shouldNormalize = normalization;
+  const isCurrent = () => backArtworkLoads.get(entry) === load && rows.includes(entry);
+  entry.backImage = file;
+  entry.backArtwork = null;
+  entry.backWarning = undefined;
+  // The entry stops being ready now, not when the load ends, or Generate would
+  // drop a mini the estimate still counts.
+  refreshBackThumb(entry);
+  updateCount();
+  try {
+    const original = await prepareArtwork(file);
+    if (!isCurrent()) return;
+    const { artwork, warning } = shouldNormalize
+      ? await normalizeArtwork(original)
+      : { artwork: original, warning: undefined };
+    if (!isCurrent()) return;
+    entry.backArtwork = artwork;
+    entry.backWarning = warning && `Back artwork: ${warning}`;
+  } catch (err) {
+    if (!isCurrent()) return;
+    // Falls back to the reflection rather than holding the entry back, the
+    // same way a failed trim falls back to the original.
+    entry.backImage = null;
+    entry.backWarning = 'Couldn’t load the back artwork, so the back face shows the front reflected: '
+      + (err instanceof Error ? err.message : String(err));
+  }
+  refreshBackThumb(entry);
+  updateCount();
+}
+
+function clearBackImage(entry: Entry) {
+  backArtworkLoads.delete(entry);
+  entry.backImage = null;
+  entry.backArtwork = null;
+  entry.backWarning = undefined;
+  refreshBackThumb(entry);
+  updateCount();
+}
+
+// Swaps in a rebuilt back thumbnail, so a late load preserves focus in
+// editable fields as the front's patch does. Looked up by entry rather than
+// index: duplicating a row starts its load before `rowEls` is rebuilt.
+function refreshBackThumb(entry: Entry) {
+  backThumbs.get(entry)?.replaceWith(buildBackThumb(entry));
+}
+
+const backThumbs = new WeakMap<Entry, HTMLElement>();
 
 // Row elements, parallel to `rows`, so the count pass can flag oversized rows
 // without rebuilding the DOM.
@@ -184,41 +237,20 @@ function buildRow(entry: Entry, index: number): HTMLElement {
   // Thumbnail — non-cropping (contain) so it matches the print output. Doubles
   // as a drop target / click target to replace this entry's artwork.
   const thumb = document.createElement('div');
-  thumb.className = 'thumb' + (entry.image ? '' : ' empty');
+  thumb.className = 'thumb front-thumb' + (entry.image ? '' : ' empty');
   thumb.title = 'Drop or click to replace image';
   if (entry.artwork) {
     thumb.appendChild(artworkImage(entry.artwork));
   }
-  thumb.addEventListener('click', () => replaceImage(entry));
-  thumb.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    thumb.classList.add('drop-target');
+  wireImageSlot(thumb, (file) => {
+    void setImage(entry, file);
+    render();
   });
-  thumb.addEventListener('dragleave', () => thumb.classList.remove('drop-target'));
-  thumb.addEventListener('drop', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    thumb.classList.remove('drop-target');
-    const file = Array.from(e.dataTransfer?.files ?? []).find((f) =>
-      ACCEPTED.includes(f.type.toLowerCase()),
-    );
-    if (file) {
-      void setImage(entry, file);
-      render();
-    } else {
-      showStatus('That file isn’t a PNG, JPG or WebP image.', 'error');
-    }
-  });
-
-  // Shared warning badge (updated by updateCount).
-  const warn = document.createElement('span');
-  warn.className = 'warn-badge';
-  warn.textContent = '!';
-  warn.hidden = true;
-  thumb.appendChild(warn);
-
+  // Oversize and front trim warnings, updated by updateCount.
+  thumb.appendChild(warnBadge());
   el.appendChild(thumb);
+
+  el.appendChild(buildBackThumb(entry));
 
   // Image column: file name (or a prompt to add one).
   const fileWrap = document.createElement('div');
@@ -334,6 +366,7 @@ function buildRow(entry: Entry, index: number): HTMLElement {
       const copy = { ...entry };
       rows.splice(i + 1, 0, copy);
       if (copy.image && !copy.artwork) void setImage(copy, copy.image);
+      if (copy.backImage && !copy.backArtwork) void setBackImage(copy, copy.backImage);
     }
     render();
   });
@@ -377,16 +410,78 @@ function fieldLabel(text: string): HTMLElement {
   return span;
 }
 
-function replaceImage(entry: Entry) {
+// The back artwork's slot. Empty, the back face prints the front reflected,
+// and the slot says so.
+function buildBackThumb(entry: Entry): HTMLElement {
+  const thumb = document.createElement('div');
+  thumb.className = 'thumb back-thumb' + (entry.backImage ? '' : ' mirrored');
+  thumb.title = entry.backImage
+    ? `Back: ${entry.backImage.name}. Drop or click to replace it`
+    : 'Back face prints the front mirrored. Drop or click to add artwork drawn from behind';
+  if (entry.backArtwork) {
+    thumb.appendChild(artworkImage(entry.backArtwork));
+  }
+  wireImageSlot(thumb, (file) => void setBackImage(entry, file));
+  backThumbs.set(entry, thumb);
+  // A failed load leaves a warning on an empty slot; removing clears it too.
+  if (entry.backImage || entry.backWarning) {
+    const remove = document.createElement('button');
+    remove.className = 'back-remove';
+    remove.type = 'button';
+    remove.textContent = '×';
+    remove.title = 'Remove back artwork';
+    remove.setAttribute('aria-label', remove.title);
+    remove.addEventListener('click', (e) => {
+      e.stopPropagation();
+      clearBackImage(entry);
+    });
+    thumb.appendChild(remove);
+  }
+  // Back load and trim warnings, updated by updateCount.
+  thumb.appendChild(warnBadge());
+  return thumb;
+}
+
+function warnBadge(): HTMLElement {
+  const warn = document.createElement('span');
+  warn.className = 'warn-badge';
+  warn.textContent = '!';
+  warn.hidden = true;
+  return warn;
+}
+
+// A thumbnail takes one image by click or by drop. A drop stops here, so it
+// never reaches the window's handler, which would append a row.
+function wireImageSlot(thumb: HTMLElement, onFile: (file: File) => void) {
+  thumb.addEventListener('click', () => pickImage(onFile));
+  thumb.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    thumb.classList.add('drop-target');
+  });
+  thumb.addEventListener('dragleave', () => thumb.classList.remove('drop-target'));
+  thumb.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    thumb.classList.remove('drop-target');
+    const file = Array.from(e.dataTransfer?.files ?? []).find((f) =>
+      ACCEPTED.includes(f.type.toLowerCase()),
+    );
+    if (file) {
+      onFile(file);
+    } else {
+      showStatus('That file isn’t a PNG, JPG or WebP image.', 'error');
+    }
+  });
+}
+
+function pickImage(onFile: (file: File) => void) {
   const picker = document.createElement('input');
   picker.type = 'file';
   picker.accept = 'image/png,image/jpeg,image/webp';
   picker.addEventListener('change', () => {
     const file = picker.files?.[0];
-    if (file && ACCEPTED.includes(file.type.toLowerCase())) {
-      void setImage(entry, file);
-      render();
-    }
+    if (file && ACCEPTED.includes(file.type.toLowerCase())) onFile(file);
   });
   picker.click();
 }
@@ -419,18 +514,13 @@ function updateCount() {
 
   const oversized = new Set(result.oversizedEntryIndices);
   rowEls.forEach((el, i) => {
-    const badge = el.querySelector('.warn-badge') as HTMLElement | null;
     const isOversized = oversized.has(i);
     el.classList.toggle('oversized', isOversized);
-    if (badge) {
-      const warnings = [];
-      if (isOversized) warnings.push('This mini is too large for the printable area and will be left out. Reduce its size, lower the figure margin, or pick a larger page.');
-      if (rows[i].normalizationWarning) warnings.push(rows[i].normalizationWarning);
-      badge.hidden = warnings.length === 0;
-      badge.title = warnings.join(' ');
-      badge.setAttribute('aria-label', badge.title);
-      badge.tabIndex = warnings.length ? 0 : -1;
-    }
+    showWarnings(el.querySelector('.front-thumb .warn-badge'), [
+      isOversized && 'This mini is too large for the printable area and will be left out. Reduce its size, lower the figure margin, or pick a larger page.',
+      rows[i].normalizationWarning,
+    ]);
+    showWarnings(el.querySelector('.back-thumb .warn-badge'), [rows[i].backWarning]);
   });
 
   const pageLabel = pageSize === 'a4' ? 'A4' : 'Letter';
@@ -455,6 +545,15 @@ function updateCount() {
 
   packedMiniCount = result.miniCount;
   syncActionButtons();
+}
+
+function showWarnings(badge: HTMLElement | null, candidates: (string | false | undefined)[]) {
+  if (!badge) return;
+  const warnings = candidates.filter((w): w is string => !!w);
+  badge.hidden = warnings.length === 0;
+  badge.title = warnings.join(' ');
+  badge.setAttribute('aria-label', badge.title);
+  badge.tabIndex = warnings.length ? 0 : -1;
 }
 
 let packedMiniCount = 0;
@@ -497,6 +596,7 @@ normalizeArtworkEl.addEventListener('change', () => {
   saveSettings();
   for (const entry of rows) {
     if (entry.image) void setImage(entry, entry.image);
+    if (entry.backImage) void setBackImage(entry, entry.backImage);
   }
   render();
 });

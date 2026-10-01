@@ -166,7 +166,7 @@ button {
 .rows-header,
 .row {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) 260px 90px 64px;
+  grid-template-columns: 56px 56px minmax(0, 1fr) 260px 90px 64px;
   gap: 0.75rem;
   align-items: center;
 }
@@ -178,9 +178,10 @@ button {
   letter-spacing: 0.04em;
   color: var(--muted);
 }
-.rows-header .col-image { grid-column: 1 / 3; }
-.rows-header .col-size { grid-column: 3; }
-.rows-header .col-copies { grid-column: 4; }
+.rows-header .col-image { grid-column: 1; }
+.rows-header .col-back { grid-column: 2; }
+.rows-header .col-size { grid-column: 4; }
+.rows-header .col-copies { grid-column: 5; }
 
 .rows {
   display: flex;
@@ -227,6 +228,26 @@ button {
   content: 'add';
   font-size: 0.65rem;
   color: var(--muted);
+}
+.row .thumb.mirrored::after {
+  content: 'mirrored';
+  font-size: 0.65rem;
+  color: var(--muted);
+}
+.row .back-thumb .back-remove {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
 }
 .row .thumb.drop-target {
   border-color: var(--accent);
@@ -429,14 +450,15 @@ button {
   .rows-header { display: none; }
 
   .row {
-    grid-template-columns: 56px minmax(0, 1fr);
+    grid-template-columns: 56px 56px minmax(0, 1fr);
     grid-template-areas:
-      'thumb file'
-      'size size'
-      'copies actions';
+      'thumb back file'
+      'size size size'
+      'copies copies actions';
     row-gap: 0.6rem;
   }
-  .row .thumb { grid-area: thumb; }
+  .row .front-thumb { grid-area: thumb; }
+  .row .back-thumb { grid-area: back; }
   .row .file-wrap { grid-area: file; align-self: center; }
   .row .size-wrap { grid-area: size; }
   .row .copies-wrap { grid-area: copies; }

@@ -93,7 +93,6 @@ Vector PDF via `pdf-lib` (or `jsPDF` — implementer's choice).
 
 - URL paste / fetching remote images (CORS).
 - Background removal / silhouette cut.
-- Separate front and back artwork upload.
 - Integral fold-out feet (separate stand assumed).
 - Cloud storage / saved entries / multi-user.
 

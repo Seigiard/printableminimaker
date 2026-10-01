@@ -255,7 +255,7 @@ t('a numbered mini at zero margin centres its base under the figure', () => {
   assert.deepEqual(result.pages, [{ heightMm: 120, rows: [{
     widthMm: 35, heightMm: 120, items: [{
       entryIndex: 0, copyIndex: 0, heightSlot: 'medium', baseWidthMm: 25,
-      imageWidthMm: 35, imageHeightMm: 35, imageOffsetXMm: 0,
+      imageWidthMm: 35, imageHeightMm: 35, imageOffsetXMm: 0, faceHeightMm: 35,
       totalWidthMm: 35, baseOffsetXMm: 5,
       tabHeightMm: 12.5, totalHeightMm: 120, marginMm: 0, label: '1',
     }],
@@ -394,6 +394,48 @@ t('the tooltip promises the millimetres the packer actually produces', () => {
       return `${mini.baseWidthMm} mm base · ${mini.imageHeightMm} mm tall`;
     }),
   );
+});
+
+// A back artwork is sized from the same slot as the front, under its own
+// width cap, and the cut-out has to hold whichever face is wider.
+t('a back artwork wider than its front sets the cut width and centres the front', () => {
+  // #given  a square front at Medium prints 35 mm wide; a 3:2 back prints 52.5
+  const entries = [entry({ backNaturalWidth: 150, backNaturalHeight: 100 })];
+  // #when
+  const m = packMinis(entries, { ...sheetOpts, marginMm: 2 }).pages[0].rows[0].items[0];
+  // #then
+  assert.deepEqual({
+    total: m.totalWidthMm, front: [m.imageWidthMm, m.imageOffsetXMm],
+    back: m.back, base: m.baseOffsetXMm,
+  }, {
+    total: 56.5, front: [35, 10.75],
+    back: { imageWidthMm: 52.5, imageHeightMm: 35, imageOffsetXMm: 2 }, base: 15.75,
+  });
+});
+
+t('a back artwork the width cap shortens still stands on a full-height face', () => {
+  // #given  a 4:1 back hits the cap and prints 52.5 x 13.125 behind a 35 mm front
+  const entries = [entry({ backNaturalWidth: 400, backNaturalHeight: 100 })];
+  // #when
+  const m = packMinis(entries, { ...sheetOpts, marginMm: 2 }).pages[0].rows[0].items[0];
+  // #then  both halves keep the taller face, so the tabs still meet the floor
+  assert.deepEqual([m.faceHeightMm, m.back!.imageHeightMm, m.totalHeightMm], [35, 13.125, 124]);
+});
+
+t('a back taller than its capped front sets the face height either way round', () => {
+  // #given  a 4:1 front, capped to 13.125 mm tall, before a 35 mm square back
+  const entries = [entry({ naturalWidth: 400, naturalHeight: 100, backNaturalWidth: 100, backNaturalHeight: 100 })];
+  // #when
+  const m = packMinis(entries, { ...sheetOpts, marginMm: 2 }).pages[0].rows[0].items[0];
+  // #then
+  assert.deepEqual([m.faceHeightMm, m.imageHeightMm, m.totalHeightMm], [35, 13.125, 124]);
+});
+
+t('a mini without a back artwork carries no back face geometry', () => {
+  // #when
+  const m = packMinis([entry({})], sheetOpts).pages[0].rows[0].items[0];
+  // #then
+  assert.deepEqual([m.back, m.faceHeightMm], [undefined, m.imageHeightMm]);
 });
 
 console.log(`\n${passed} passed`);

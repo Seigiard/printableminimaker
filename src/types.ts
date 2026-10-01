@@ -22,6 +22,11 @@ export type Entry = {
   image: File | null;
   artwork: PreparedArtwork | null;
   normalizationWarning?: string;
+  // Optional, drawn as the creature looks from behind. While `backImage` is set
+  // and `backArtwork` is null, the back is loading and the entry is not ready.
+  backImage?: File | null;
+  backArtwork?: PreparedArtwork | null;
+  backWarning?: string;
   heightSlot: MiniSize;
   customWidthMm?: number;
   customHeightMm?: number;
@@ -39,4 +44,6 @@ export type PreparedArtwork = {
 export type PackingEntry = Pick<Entry, 'heightSlot' | 'customWidthMm' | 'customHeightMm' | 'count'> & {
   naturalWidth?: number;
   naturalHeight?: number;
+  backNaturalWidth?: number;
+  backNaturalHeight?: number;
 };

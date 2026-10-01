@@ -26,16 +26,23 @@ export type PackedMini = {
   copyIndex: number; // 0-based copy within the entry
   heightSlot: MiniSize;
   baseWidthMm: number; // the category's base, which sizes the stand and the badge
-  totalWidthMm: number; // the wider of figure and base, plus margins — the cut-out's width, and every strip's
+  totalWidthMm: number; // the widest of base and both figures, plus margins — the cut-out's width, and every strip's
   baseOffsetXMm: number; // offset of the base from the reserved column's left edge
   tabHeightMm: number; // each end strip; the floor strip under the front tab is twice this
   marginMm: number;
-  imageWidthMm: number; // drawn image width; may exceed baseWidthMm
+  imageWidthMm: number; // the front image's drawn width; may exceed baseWidthMm. `back` holds the back's
   imageHeightMm: number;
   imageOffsetXMm: number; // offset from the outline's left edge, including margin and centering
+  // Each face's paper between its tab and the fold: the taller of the two
+  // images, so both halves fold to the same length and both tabs meet the floor.
+  faceHeightMm: number;
+  back?: BackFace; // present only for an entry with back artwork
   totalHeightMm: number;
   label?: string;
 };
+
+// The front's three image fields again, for the back artwork.
+export type BackFace = { imageWidthMm: number; imageHeightMm: number; imageOffsetXMm: number };
 
 export type PackedRow = { items: PackedMini[]; widthMm: number; heightMm: number };
 export type PackedPage = { rows: PackedRow[]; heightMm: number };
@@ -62,6 +69,12 @@ export type PackOptions = {
   marginMm?: number;
 };
 
+// A back file is chosen but not prepared yet. Such an entry is not ready, so
+// it does not print reflected for a moment and then jump to its own back.
+export function isBackArtworkLoading(entry: Entry): boolean {
+  return entry.backImage != null && entry.backArtwork == null;
+}
+
 // Project prepared artwork into packing geometry without changing entry indices.
 export function packEntries(entries: Entry[], opts: PackOptions): PackResult {
   return packMinis(entries.map((entry) => ({
@@ -69,8 +82,10 @@ export function packEntries(entries: Entry[], opts: PackOptions): PackResult {
     customWidthMm: entry.customWidthMm,
     customHeightMm: entry.customHeightMm,
     count: entry.count,
-    naturalWidth: entry.artwork?.width,
-    naturalHeight: entry.artwork?.height,
+    naturalWidth: isBackArtworkLoading(entry) ? undefined : entry.artwork?.width,
+    naturalHeight: isBackArtworkLoading(entry) ? undefined : entry.artwork?.height,
+    backNaturalWidth: entry.backArtwork?.width,
+    backNaturalHeight: entry.backArtwork?.height,
   })), opts);
 }
 
@@ -102,20 +117,28 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
       return; // not packable yet
     }
     const { imageWidthMm, imageHeightMm } = fitFigure(dimensions, e.naturalWidth, e.naturalHeight);
-    // A figure may overhang its base, so the reserved column is the wider of
-    // the two.
-    const contentWidthMm = Math.max(baseWidthMm, imageWidthMm);
+    const backFit = e.backNaturalWidth && e.backNaturalHeight
+      ? fitFigure(dimensions, e.backNaturalWidth, e.backNaturalHeight)
+      : undefined;
+    // A figure may overhang its base, so the reserved column is the widest of
+    // base and faces.
+    const contentWidthMm = Math.max(baseWidthMm, imageWidthMm, backFit?.imageWidthMm ?? 0);
     const totalWidthMm = contentWidthMm + marginMm * 2;
     const imageOffsetXMm = marginMm + (contentWidthMm - imageWidthMm) / 2;
+    const back = backFit && {
+      ...backFit,
+      imageOffsetXMm: marginMm + (contentWidthMm - backFit.imageWidthMm) / 2,
+    };
+    const faceHeightMm = Math.max(imageHeightMm, backFit?.imageHeightMm ?? 0);
     // Derived here in millimetres rather than in the drawer, because the same
     // arithmetic in points does not land on the same numbers. `drawMini` still
     // derives the back badge's own offset, inside the rotated frame, from this
     // rule — change it here and change it there.
     const baseOffsetXMm = marginMm + (contentWidthMm - baseWidthMm) / 2;
     const tabHMm = resolveTabHeightMm(e);
-    // Figure on figure, a margin either side of the fold, a tab at each end and
+    // Face on face, a margin either side of the fold, a tab at each end and
     // the floor strip, twice a tab, under the front one.
-    const totalHeightMm = imageHeightMm * 2 + marginMm * 2 + tabHMm * 4;
+    const totalHeightMm = faceHeightMm * 2 + marginMm * 2 + tabHMm * 4;
     for (let i = 0; i < e.count; i++) {
       minis.push({
         entryIndex,
@@ -129,6 +152,8 @@ export function packMinis(entries: PackingEntry[], opts: PackOptions): PackResul
         imageWidthMm,
         imageHeightMm,
         imageOffsetXMm,
+        faceHeightMm,
+        ...(back && { back }),
         totalHeightMm,
         label: opts.numberDuplicates ? String(i + 1) : undefined,
       });
