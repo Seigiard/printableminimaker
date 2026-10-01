@@ -12,7 +12,7 @@ In-browser tool that turns uploaded artwork into print-ready PDFs of foldable D&
 - Trimmed artwork is stored as PNG to avoid another lossy compression pass. Trimming a JPEG can increase the PDF size; turning off normalization keeps the original JPEG bytes.
 - **Figure margin** adds paper around each face without shrinking the figure. It defaults to 2 mm and is saved across reloads. It also applies when normalization is off; set it to 0 for no added margin. The gap between minis stays at 4 mm.
 - Generate a multi-page A4 or Letter PDF, packed greedily by size.
-- Each mini unfolds, bottom to top, into a floor strip, a front tab, the front image, the fold, the back image (mirrored top to bottom, so both outlines line up when folded) and a back tab. It stands as `_||_`: fold the tabs out, then fold the floor under them and glue it to both. Grey cut marks outside the mini show where to cut and fold, as on Printable Heroes sheets: crosses at the corners and at the fold between the faces, half marks where a strip folds. Nothing is printed on the mini itself. Cut the rectangle between the marks. The artwork's background colour remains inside the image rectangle; only transparent or white areas leave a white rim.
+- Each mini unfolds, bottom to top, into a floor strip, a front tab, the front image, the fold, the back image (the front mirrored top to bottom, so both outlines line up when folded; or, if you add a back artwork in the row's Back slot, that artwork turned half a turn so it reads correctly from behind) and a back tab. It stands as `_||_`: fold the tabs out, then fold the floor under them and glue it to both. Grey cut marks outside the mini show where to cut and fold, as on Printable Heroes sheets: crosses at the corners and at the fold between the faces, half marks where a strip folds. Nothing is printed on the mini itself. Cut the rectangle between the marks. The artwork's background colour remains inside the image rectangle; only transparent or white areas leave a white rim.
 
 Everything runs client-side. No uploads leave your browser.
 
@@ -82,7 +82,7 @@ Vanilla TypeScript, Vite, [pdf-lib](https://pdf-lib.js.org/). Cut and fold lines
 
 ## Scope
 
-See [SPEC.md](./SPEC.md) for the v1 spec, including what's deliberately left out (URL paste, background removal, separate front/back artwork).
+See [SPEC.md](./SPEC.md) for the v1 spec, including what's deliberately left out (URL paste, background removal).
 
 ## License
 
